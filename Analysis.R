@@ -301,17 +301,29 @@ gls.exp9<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SAC +
 
 #use AIC to determine best model
 
-AIC(full.gls.exp, gls.exp1, gls.exp2, gls.exp3, gls.exp4, gls.exp5, gls.exp6, gls.exp7, gls.exp8,gls.exp9)
-
-
-
-gls.exp8<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +
-                Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_CNTRY +
-                Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                Mean_Nat + offset(Pop_dens),data=gls.data,
-              correlation=corExp(form=~x+y,nugget=T),method="REML")
-
+# AIC(full.gls.exp, gls.exp1, gls.exp2, gls.exp3, gls.exp4, gls.exp5, gls.exp6, gls.exp7, gls.exp8,gls.exp9)
+# 
+# 
+# 
+# gls.exp8<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +
+#                 Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_CNTRY +
+#                 Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
+#                 Mean_Nat + offset(Pop_dens),data=gls.data,
+#               correlation=corExp(form=~x+y,nugget=T),method="REML")
+# 
 ########################
 ##model averaging!
+library(MuMIn)
+
+best<-model.sel(full.gls.exp, gls.exp1, gls.exp2, gls.exp3, gls.exp4, 
+                gls.exp5, gls.exp6, gls.exp7, gls.exp8,gls.exp9)
+
+
+best_sub<-subset(best, delta <2) 
+importance(best_sub)
+
+#need to refit with REML before averaging
+best.avg<-model.avg(best_sub)
+best.avg
 
 
