@@ -348,7 +348,69 @@ gls.exp8<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +
               correlation=corExp(form=~x+y,nugget=T),method="REML")
 
 
-best.avg<-model.avg(best_sub)
+best.avg<-model.avg(gls.exp6, gls.exp7, gls.exp8)
 best.avg
+best.avg$coefficients
 
 
+###########################################
+##different model selection
+
+gls.data.2<-data.frame(Count_WW=log10(data_sub$Count_WW+1),Area_WHS=scale(data_sub$Area_WHS,scale=T),
+                     Area_SSSI=scale(data_sub$Area_SSSI,scale=T), Area_SPA=scale(data_sub$Area_SPA,scale=T), 
+                     Area_SAC=scale(data_sub$Area_SAC,scale=T), Area_RAMSA=scale(data_sub$Area_RAMSA,scale=T),
+                     Area_NR=scale(data_sub$Area_NR,scale=T), Area_NNR=scale(data_sub$Area_NNR,scale=T), 
+                     Area_MPAdi=scale(data_sub$Area_MPAdi,scale=T), Area_MCA=scale(data_sub$Area_MCA,scale=T), 
+                     Area_LNR=scale(data_sub$Area_LNR,scale=T), Area_COUNE=scale(data_sub$Area_COUNE,scale=T),
+                     Area_CNTRY=scale(data_sub$Area_CNTRY,scale=T), Area_BIOSP=scale(data_sub$Area_BIOSP,scale=T), 
+                     Area_BIOGE=scale(data_sub$Area_BIOGE,scale=T), Area_NP=scale(data_sub$Area_NP,scale=T), 
+                     Dist_Air=scale(data_sub$Dist_Air,scale=T), Count_Bus=scale(data_sub$Count_Bus,scale=T),
+                     Count_Hotel=log10(data_sub$Count_Hotel+1), Dist_CarPark=scale(data_sub$Dist_CarPark,scale=T), 
+                     Dist_TourOp=scale(data_sub$Dist_TourOp,scale=T), Dist_Train=scale(data_sub$Dist_Train,scale=T), 
+                     Dist_road=scale(data_sub$Dist_road,scale=T), Mean_Nat=scale(data_sub$Mean_Nat,scale=T),
+                     Area_PA=scale(data_sub$Area_PA,scale=T),Count_Inf=log10(data_sub$Count_Inf+1),
+                     Pop_dens=log10(data_sub$Pop_dens+1),x=data_sub$Longitude,y=data_sub$Latitude)
+
+#fit the full model
+full.gls.exp<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +Area_RAMSA+ Area_NR +
+                    Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
+                    Area_BIOGE + Area_NP + Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
+                    Dist_Train  + Dist_road + Mean_Nat + offset(Pop_dens),data=gls.data.2,
+                  correlation=corExp(form=~x+y,nugget=T),method="ML")
+
+#fit a model with aggregated variables
+agg.gls<-gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf + offset(Pop_dens),data=gls.data.2,
+             correlation=corExp(form=~x+y,nugget=T),method="ML")
+
+#all variables have an effect on the response therefore fit an environmental and an infrastructure model
+#to select important variables
+
+env.gls<-gls(Count_WW~ Area_WHS + Area_SPA + Area_SAC +Area_RAMSA+ Area_NR +
+             Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
+             Area_BIOGE + Area_NP +offset(Pop_dens),data=gls.data.2,
+             correlation=corExp(form=~x+y,nugget=T),method="ML")
+
+inf.gls<-gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
+               Dist_Train  + Dist_road +offset(Pop_dens),data=gls.data.2,
+             correlation=corExp(form=~x+y,nugget=T),method="ML")
+
+AIC(full.gls.exp, agg.gls, env.gls, inf.gls)
+
+summary(agg.gls)
+
+#now use dredge to find best combination of variables for both env and infr models
+
+#use pdredge to use parallell computing
+library(parallel)
+library(doParallel)
+library(snow)
+cl <- makeCluster(3)            #split into 3 cores
+registerDoParallel(cl)          #register the parallel backend
+clusterExport(cl,"gls.data.2")  #export the dataframe to the cluster
+clusterEvalQ(cl,library(nlme))  #load the required package onto the cluster
+
+pdredge(inf.gls,cluster=cl,rank = "AIC",trace=2)    #model selection for infrastructure model
+
+pdredge(env.gls,cluster=cl,rank = "AIC",trace=2)    #model selection for environmental model
+
+stopCluster(cl)
