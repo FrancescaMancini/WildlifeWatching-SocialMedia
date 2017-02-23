@@ -194,10 +194,65 @@ AIC(full.gls,full.gls.sph,full.gls.Lin,full.gls.ratio,full.gls.Gaus,full.gls.exp
 
 #model with exponential correlation structure is the best model
 
+
+
+###########################################
+##model selection
+
+#load the data from the subfolder //data
+Dist_MSAC<-read.table(".//data//CombinedData_v10.txt",stringsAsFactors = F,header=T)[,43]
+
+#load columns for distance from marine SAC, MPA and MCA and area of terrestrial SAC
+new<-read.table(".//data//Area_SAC_L.txt",stringsAsFactors = F,header=T)
+
+data<-read.table(".//data//CombinedData_v9.txt",stringsAsFactors = F,header=T)
+
+#put data together
+data_new<-cbind(data,new,Dist_MSAC)
+
+#subset the data to exclude all the observation without natural values
+data_sub<-data_new[is.na(data_new$Mean_Nat)==F,]
+
+write.table(data_sub,".//data//CombinedData_v11.txt", sep="\t", row.names=F)
+
+data_sub<-read.table(".//data//CombinedData_v11.txt",stringsAsFactors = F,header=T)
+
+gls.data.2<-data.frame(Count_WW=log10(data_sub$Count_WW+1),Area_WHS=scale(data_sub$Area_WHS,scale=T),
+                     Area_SSSI=scale(data_sub$Area_SSSI,scale=T), Area_SPA=scale(data_sub$Area_SPA,scale=T),
+                     Area_LSAC=scale(data_sub$Area_SAC_L,scale=T), Area_RAMSA=scale(data_sub$Area_RAMSA,scale=T),
+                     Area_NR=scale(data_sub$Area_NR,scale=T), Area_NNR=scale(data_sub$Area_NNR,scale=T),
+                     Dist_MPA=scale(data_sub$Dist_MPA,scale=T), Dist_MCA=scale(data_sub$Dist_MCA,scale=T),
+                     Area_LNR=scale(data_sub$Area_LNR,scale=T), Area_COUNE=scale(data_sub$Area_COUNE,scale=T),
+                     Area_CNTRY=scale(data_sub$Area_CNTRY,scale=T), Area_BIOSP=scale(data_sub$Area_BIOSP,scale=T),
+                     Area_BIOGE=scale(data_sub$Area_BIOGE,scale=T), Area_NP=scale(data_sub$Area_NP,scale=T),
+                     Dist_Air=scale(data_sub$Dist_Air,scale=T), Count_Bus=scale(data_sub$Count_Bus,scale=T),
+                     Count_Hotel=log10(data_sub$Count_Hotel+1), Dist_CarPark=scale(data_sub$Dist_CarPark,scale=T),
+                     Dist_TourOp=scale(data_sub$Dist_TourOp,scale=T), Dist_Train=scale(data_sub$Dist_Train,scale=T),
+                     Dist_road=scale(data_sub$Dist_road,scale=T), Mean_Nat=scale(data_sub$Mean_Nat,scale=T),
+                     Area_PA=scale(data_sub$Area_PA,scale=T),Count_Inf=log10(data_sub$Count_Inf+1),
+                     Dist_MSAC=scale(data_sub$Dist_MSAC,scale=T),
+                     Pop_dens=log10(data_sub$Pop_dens+1),x=data_sub$Longitude,y=data_sub$Latitude)
+
+preds<-data_sub[,c("Area_WHS","Area_SSSI","Area_SPA","Area_SAC_L","Area_RAMSA","Area_NR","Area_NNR",
+                   "Dist_MPA","Dist_MCA","Area_LNR","Area_COUNE","Area_CNTRY","Area_BIOSP","Area_BIOGE",
+                   "Area_NP","Dist_Air","Count_Bus","Count_Hotel","Dist_CarPark","Dist_TourOp",
+                   "Dist_Train","Dist_road","Mean_Nat","Dist_MSAC")]
+
+VIF.gls<-corvif(preds)
+
+#fit the full model
+start<-Sys.time()
+full.gls.exp<-gls(Count_WW~ Area_WHS + Area_LSAC +  Dist_MSAC +Dist_MPA +Dist_MCA +
+                    Area_SPA +Area_RAMSA+ Area_NR +
+                    Area_NNR+   Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
+                    Area_BIOGE + Area_NP + Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
+                    Dist_Train  + Dist_road + Mean_Nat + offset(Pop_dens),data=gls.data.2,
+                  correlation=corExp(form=~x+y,nugget=T),method="ML")
+End<-Sys.time()
+time<-start-End
+
 summary(full.gls.exp)
 
-
-#check for patterns in the residuals
 plot(full.gls.exp)
 
 res.gls<-residuals(full.gls.exp,type="normalized")
@@ -218,185 +273,101 @@ coordinates(bubble.data.gls)<-c("data_sub.Longitude","data_sub.Latitude")
 
 bubble(bubble.data.gls,"res.gls",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
 
-#######################
-##model selection
-#######################
-
-#fit every alternative model with maximum likelihood
-
-full.gls.exp<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +Area_RAMSA+ Area_NR +
-                    Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
-                    Area_BIOGE + Area_NP + Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                    Dist_Train  + Dist_road + Mean_Nat + offset(Pop_dens),data=gls.data,
-                  correlation=corExp(form=~x+y,nugget=T),method="ML")
-
-saveRDS(object = full.gls.exp, file = "full.gls.exp.rds")
-
-gls.exp1<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +Area_RAMSA+ Area_NR +
-                Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
-                Area_BIOGE + Area_NP + Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                Dist_Train  + Mean_Nat + offset(Pop_dens),data=gls.data,
-              correlation=corExp(form=~x+y,nugget=T),method="ML")
-
-saveRDS(object = gls.exp1, file = "gls.exp1.rds")
-
-gls.exp2<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +Area_RAMSA+ Area_NR +
-                Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
-                Area_BIOGE + Area_NP + Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                Mean_Nat + offset(Pop_dens),data=gls.data,
-              correlation=corExp(form=~x+y,nugget=T),method="ML")
-
-saveRDS(object = gls.exp2, file = "gls.exp2.rds")
-
-
-gls.exp3<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +Area_RAMSA+ Area_NR +
-                Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
-                Area_BIOGE + Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                Mean_Nat + offset(Pop_dens),data=gls.data,
-              correlation=corExp(form=~x+y,nugget=T),method="ML")
-
-saveRDS(object = gls.exp3, file = "gls.exp3.rds")
-
-gls.exp4<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +Area_RAMSA+ Area_NR +
-                Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
-                Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                Mean_Nat + offset(Pop_dens),data=gls.data,
-              correlation=corExp(form=~x+y,nugget=T),method="ML")
-
-saveRDS(object = gls.exp4, file = "gls.exp4.rds")
-
-gls.exp5<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +Area_RAMSA+ Area_NR +
-                Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_COUNE + Area_CNTRY +
-                Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                Mean_Nat + offset(Pop_dens),data=gls.data,
-              correlation=corExp(form=~x+y,nugget=T),method="ML")
-
-saveRDS(object = gls.exp5, file = "gls.exp5.rds")
-
-gls.exp6<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +Area_RAMSA+ Area_NR +
-                Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_CNTRY +
-                Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                Mean_Nat + offset(Pop_dens),data=gls.data,
-              correlation=corExp(form=~x+y,nugget=T),method="ML")
-
-saveRDS(object = gls.exp6, file = "gls.exp6.rds")
-
-gls.exp7<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +Area_RAMSA+
-                Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_CNTRY +
-                Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                Mean_Nat + offset(Pop_dens),data=gls.data,
-              correlation=corExp(form=~x+y,nugget=T),method="ML")
-
-saveRDS(object = gls.exp7, file = "gls.exp7.rds")
-
-
-gls.exp8<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +
-                Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_CNTRY +
-                Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                Mean_Nat + offset(Pop_dens),data=gls.data,
-              correlation=corExp(form=~x+y,nugget=T),method="ML")
-
-saveRDS(object = gls.exp8, file = "gls.exp8.rds")
-
-gls.exp9<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SAC +
-                Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_CNTRY +
-                Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                Mean_Nat + offset(Pop_dens),data=gls.data,
-              correlation=corExp(form=~x+y,nugget=T),method="ML")
-
-saveRDS(object = gls.exp9, file = "gls.exp9.rds")
-
-##for loading readRDS("mymodel.rds")
-
-#use AIC to determine best model
-
-AIC(full.gls.exp, gls.exp1, gls.exp2, gls.exp3, gls.exp4, gls.exp5, gls.exp6, gls.exp7, gls.exp8,gls.exp9)
-
-#cannot simplify any further
-
-########################
-##model averaging
-library(MuMIn)
-
-best<-model.sel(full.gls.exp, gls.exp1, gls.exp2, gls.exp3, gls.exp4, 
-                gls.exp5, gls.exp6, gls.exp7, gls.exp8,gls.exp9)
-
-
-best_sub<-subset(best, delta <2) 
-importance(best_sub)
-
-#need to refit with REML before averaging
-gls.exp6<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +Area_RAMSA+ Area_NR +
-                Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_CNTRY +
-                Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                Mean_Nat + offset(Pop_dens),data=gls.data,
-              correlation=corExp(form=~x+y,nugget=T),method="REML")
-
-
-gls.exp7<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +Area_RAMSA+
-                Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_CNTRY +
-                Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                Mean_Nat + offset(Pop_dens),data=gls.data,
-              correlation=corExp(form=~x+y,nugget=T),method="REML")
-
-
-
-gls.exp8<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +
-                Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_CNTRY +
-                Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                Mean_Nat + offset(Pop_dens),data=gls.data,
-              correlation=corExp(form=~x+y,nugget=T),method="REML")
-
-
-best.avg<-model.avg(gls.exp6, gls.exp7, gls.exp8)
-best.avg
-best.avg$coefficients
-
-
-###########################################
-##different model selection
-
-gls.data.2<-data.frame(Count_WW=log10(data_sub$Count_WW+1),Area_WHS=scale(data_sub$Area_WHS,scale=T),
-                     Area_SSSI=scale(data_sub$Area_SSSI,scale=T), Area_SPA=scale(data_sub$Area_SPA,scale=T), 
-                     Area_SAC=scale(data_sub$Area_SAC,scale=T), Area_RAMSA=scale(data_sub$Area_RAMSA,scale=T),
-                     Area_NR=scale(data_sub$Area_NR,scale=T), Area_NNR=scale(data_sub$Area_NNR,scale=T), 
-                     Area_MPAdi=scale(data_sub$Area_MPAdi,scale=T), Area_MCA=scale(data_sub$Area_MCA,scale=T), 
-                     Area_LNR=scale(data_sub$Area_LNR,scale=T), Area_COUNE=scale(data_sub$Area_COUNE,scale=T),
-                     Area_CNTRY=scale(data_sub$Area_CNTRY,scale=T), Area_BIOSP=scale(data_sub$Area_BIOSP,scale=T), 
-                     Area_BIOGE=scale(data_sub$Area_BIOGE,scale=T), Area_NP=scale(data_sub$Area_NP,scale=T), 
-                     Dist_Air=scale(data_sub$Dist_Air,scale=T), Count_Bus=scale(data_sub$Count_Bus,scale=T),
-                     Count_Hotel=log10(data_sub$Count_Hotel+1), Dist_CarPark=scale(data_sub$Dist_CarPark,scale=T), 
-                     Dist_TourOp=scale(data_sub$Dist_TourOp,scale=T), Dist_Train=scale(data_sub$Dist_Train,scale=T), 
-                     Dist_road=scale(data_sub$Dist_road,scale=T), Mean_Nat=scale(data_sub$Mean_Nat,scale=T),
-                     Area_PA=scale(data_sub$Area_PA,scale=T),Count_Inf=log10(data_sub$Count_Inf+1),
-                     Pop_dens=log10(data_sub$Pop_dens+1),x=data_sub$Longitude,y=data_sub$Latitude)
-
-#fit the full model
-full.gls.exp<-gls(Count_WW~ Area_WHS + Area_WHS + Area_SPA + Area_SAC +Area_RAMSA+ Area_NR +
-                    Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
-                    Area_BIOGE + Area_NP + Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                    Dist_Train  + Dist_road + Mean_Nat + offset(Pop_dens),data=gls.data.2,
-                  correlation=corExp(form=~x+y,nugget=T),method="ML")
 
 #fit a model with aggregated variables
 agg.gls<-gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf + offset(Pop_dens),data=gls.data.2,
              correlation=corExp(form=~x+y,nugget=T),method="ML")
 
+summary(agg.gls)
+
+#check for patterns in the residuals
+plot(agg.gls)
+
+res.agg.gls<-residuals(agg.gls,type="normalized")
+fit.agg.gls<-fitted(agg.gls)
+
+plot(res.agg.gls~fit.agg.gls)
+
+qqnorm(res.agg.gls)
+qqline(res.agg.gls)
+
+#check that autocorrelation is not an issue anymore
+Vario.agg.gls<-Variogram(agg.gls,form= ~x+y,robust=T,resType = "normalized")
+
+plot(Vario.agg.gls, smooth=F)
+
+bubble.data.agg.gls<-data.frame(res.agg.gls,data_sub$Longitude,data_sub$Latitude)
+coordinates(bubble.data.agg.gls)<-c("data_sub.Longitude","data_sub.Latitude")
+
+bubble(bubble.data.agg.gls,"res.agg.gls",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
+
+
 #all variables have an effect on the response therefore fit an environmental and an infrastructure model
 #to select important variables
+
+#Environment
 
 env.gls<-gls(Count_WW~ Area_WHS + Area_SPA + Area_SAC +Area_RAMSA+ Area_NR +
              Area_NNR+ Area_MPAdi + Area_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
              Area_BIOGE + Area_NP +offset(Pop_dens),data=gls.data.2,
              correlation=corExp(form=~x+y,nugget=T),method="ML")
 
+summary(env.gls)
+
+#check for patterns in the residuals
+plot(env.gls)
+
+res.env.gls<-residuals(env.gls,type="normalized")
+fit.env.gls<-fitted(env.gls)
+
+plot(res.env.gls~fit.env.gls)
+
+qqnorm(res.env.gls)
+qqline(res.env.gls)
+
+#check that autocorrelation is not an issue anymore
+Vario.env.gls<-Variogram(env.gls,form= ~x+y,robust=T,resType = "normalized")
+
+plot(Vario.env.gls, smooth=F)
+
+bubble.data.env.gls<-data.frame(res.env.gls,gls.data.2$x,gls.data.2$y)
+coordinates(bubble.data.env.gls)<-c("gls.data.2.x","gls.data.2.y")
+
+bubble(bubble.data.env.gls,"res.env.gls",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
+
+####Infrastructure
+
 inf.gls<-gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
                Dist_Train  + Dist_road +offset(Pop_dens),data=gls.data.2,
              correlation=corExp(form=~x+y,nugget=T),method="ML")
 
+summary(inf.gls)
+
+#check for patterns in the residuals
+plot(inf.gls)
+
+res.inf.gls<-residuals(inf.gls,type="normalized")
+fit.inf.gls<-fitted(inf.gls)
+
+plot(res.inf.gls~fit.inf.gls)
+
+qqnorm(res.inf.gls)
+qqline(res.inf.gls)
+
+#check that autocorrelation is not an issue anymore
+Vario.inf.gls<-Variogram(inf.gls,form= ~x+y,robust=T,resType = "normalized")
+
+plot(Vario.inf.gls, smooth=F)
+
+bubble.data.inf.gls<-data.frame(res.inf.gls,gls.data.2$x,gls.data.2$y)
+coordinates(bubble.data.inf.gls)<-c("gls.data.2.x","gls.data.2.y")
+
+bubble(bubble.data.inf.gls,"res.inf.gls",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
+
+
 AIC(full.gls.exp, agg.gls, env.gls, inf.gls)
 
-summary(agg.gls)
+
 
 #now use dredge to find best combination of variables for both env and infr models
 
