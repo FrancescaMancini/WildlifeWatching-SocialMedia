@@ -21,7 +21,7 @@ preds<-data_sub[,c("Area_WHS","Area_SSSI","Area_SPA","Area_SAC_L","Area_RAMSA","
 #then calculate variance inflation factor
 
 #calculate VIF
-source("Collinearity.R")
+source("Collinearity")
 VIF<-corvif(preds)
 
 #fit the full model to the logged count data with scaled predictors
@@ -217,6 +217,15 @@ bubble(bubble.data.gls,"res.gls",col=c("black","grey"),main="Residuals",xlab="Lo
 
 
 #fit a model with aggregated variables
+
+preds.agg<-data_sub[,c("Area_PA","Mean_Nat","Count_Inf")]
+
+#then calculate variance inflation factor
+
+#calculate VIF
+source("Collinearity")
+VIF<-corvif(preds.agg)
+
 agg.gls<-gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf + offset(Pop_dens),data=gls.data.2,
              correlation=corExp(form=~x+y,nugget=T),method="ML")
 
@@ -249,6 +258,17 @@ bubble(bubble.data.agg.gls,"res.agg.gls",col=c("black","grey"),main="Residuals",
 
 #Environment
 
+preds.env<-data_sub[,c("Area_WHS","Area_SPA","Area_SAC_L","Area_RAMSA","Area_NR","Area_NNR",
+                   "Dist_MPA","Dist_MCA","Area_LNR","Area_COUNE","Area_CNTRY","Area_BIOSP","Area_BIOGE",
+                   "Area_NP","Mean_Nat","Dist_MSAC")]
+
+#then calculate variance inflation factor
+
+#calculate VIF
+source("Collinearity")
+VIF<-corvif(preds.env)
+
+
 env.gls<-gls(Count_WW~ Area_WHS + Area_LSAC +  Dist_MSAC +Dist_MPA +Dist_MCA +
                Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
                Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Mean_Nat + 
@@ -278,6 +298,18 @@ coordinates(bubble.data.env.gls)<-c("gls.data.2.x","gls.data.2.y")
 bubble(bubble.data.env.gls,"res.env.gls",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
 
 ####Infrastructure
+
+#check for collinearity between linear predictors
+#first create a dataframe containing only the predictors of interest
+preds.inf<-data_sub[,c("Dist_Air","Count_Bus","Count_Hotel","Dist_CarPark","Dist_TourOp",
+                   "Dist_Train","Dist_road")]
+
+#then calculate variance inflation factor
+
+#calculate VIF
+source("Collinearity")
+VIF<-corvif(preds.inf)
+
 
 inf.gls<-gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
                Dist_Train  + Dist_road +offset(Pop_dens),data=gls.data.2,
