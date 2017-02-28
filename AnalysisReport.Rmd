@@ -385,5 +385,33 @@ AIC(full.gls.exp.2, agg.gls, env.gls, inf.gls)
 
 we can see that the full model is the best one, followed by the infrastructure model and the aggregated model.
 
+###Model selection using dredge
+
+We use the pdredge function in package MuMIn to select iportant variables in the models.
+
+#####Infrastructures model
+
+The function pdredge allows parallel computing.
+The following code sets up a cluster and runs the dredge function on 3 nodes.
+
+```{r pdredge, eval=FALSE}
+library(parallel)
+library(doParallel)
+library(MuMIn)
+
+cl <- makeCluster(3)            #split into 3 cores
+registerDoParallel(cl)          #register the parallel backend
+clusterExport(cl,"gls.data.2")  #export the dataframe to the cluster
+clusterEvalQ(cl,library(nlme))  #load the required package onto the cluster
+
+inf.sel<-pdredge(inf.gls,cluster=cl,rank = "AIC",trace=2)    #model selection for infrastructure model
+
+saveRDS(inf.sel,"Infrastructure_sel.rds")
+
+#pdredge(env.gls,cluster=cl,rank = "AIC",trace=2)    #model selection for environmental model
+
+stopCluster(cl)
+
+```
 
 

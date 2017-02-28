@@ -348,13 +348,16 @@ AIC(full.gls.exp.2, agg.gls, env.gls, inf.gls)
 #use pdredge to use parallell computing
 library(parallel)
 library(doParallel)
-library(snow)
+library(MuMIn)
+
 cl <- makeCluster(3)            #split into 3 cores
 registerDoParallel(cl)          #register the parallel backend
 clusterExport(cl,"gls.data.2")  #export the dataframe to the cluster
 clusterEvalQ(cl,library(nlme))  #load the required package onto the cluster
 
-pdredge(inf.gls,cluster=cl,rank = "AIC",trace=2)    #model selection for infrastructure model
+inf.sel<-pdredge(inf.gls,cluster=cl,rank = "AIC",trace=2)    #model selection for infrastructure model
+
+saveRDS(inf.sel,"Infrastructure_sel.rds")
 
 #pdredge(env.gls,cluster=cl,rank = "AIC",trace=2)    #model selection for environmental model
 
