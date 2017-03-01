@@ -414,4 +414,31 @@ stopCluster(cl)
 
 ```
 
+```{r readModSel, include=FALSE}
+inf.sel<-readRDS("Infrastructure_sel.rds")
+```
+
+Take a subset of the models that are within 5 delta AIC from the best model and inspect the importance of each variable in this subset.
+
+```{r VarImp}
+library(MuMIn)
+inf.sel.sub<-subset(inf.sel, delta <5)
+
+inf.var.imp<-importance(inf.sel.sub)
+
+```
+
+Now we can use model averaging to get coefficient estimates averaged across the subset of models and calculate confidence intervals.
+
+```{r ModAvg}
+inf.avg<-model.avg(inf.sel, subset= delta < 5, revised.var = TRUE) 
+
+inf.confint<-confint(inf.avg)
+
+summary(inf.avg) 
+
+```
+
+Only the number of bus stations, hotels and the distance for an airport have a significant effect on the number of tourists that visit an area.
+
 

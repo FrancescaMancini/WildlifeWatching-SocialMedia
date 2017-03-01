@@ -357,8 +357,79 @@ clusterEvalQ(cl,library(nlme))  #load the required package onto the cluster
 
 inf.sel<-pdredge(inf.gls,cluster=cl,rank = "AIC",trace=2)    #model selection for infrastructure model
 
+#,fixed =c(offset(Pop_dens)) include offset(Pop_dens) in all models  
+
 saveRDS(inf.sel,"Infrastructure_sel.rds")
 
 #pdredge(env.gls,cluster=cl,rank = "AIC",trace=2)    #model selection for environmental model
 
 stopCluster(cl)
+
+inf.sel<-readRDS("Infrastructure_sel.rds")
+inf.sel
+
+inf.sel.sub<-subset(inf.sel, delta <5)
+
+inf.var.imp<-importance(inf.sel.sub)
+
+inf.avg<-model.avg(inf.sel, subset= delta < 5, revised.var = TRUE) 
+summary(inf.avg) 
+inf.confint<-confint(inf.avg)
+
+inf.pred.parms<-get.models(inf.sel.sub,subset=T)
+
+newdata.Bus<-data.frame(Count_WW= gls.data.2$Count_WW,
+                        Count_Bus=seq(min(gls.data.2$Count_Bus),max(gls.data.2$Count_Bus),
+                        length.out=length(gls.data.2$Count_Bus)), Count_Hotel=rep(mean(gls.data.2$Count_Hotel),
+                        length(gls.data.2$Count_Bus)),Dist_Air=rep(mean(gls.data.2$Dist_Air),
+                        length(gls.data.2$Dist_Air)),Dist_Train=rep(mean(gls.data.2$Dist_Train),
+                        length(gls.data.2$Dist_Train)),Pop_dens=rep(mean(gls.data.2$Pop_dens),
+                        length(gls.data.2$Pop_dens)),Dist_TourOp=rep(mean(gls.data.2$Dist_TourOp),
+                        length(gls.data.2$Dist_TourOp)),Dist_CarPark=rep(mean(gls.data.2$Dist_CarPark),
+                        length(gls.data.2$Dist_CarPark)),Dist_road=rep(mean(gls.data.2$Dist_road),
+                        length(gls.data.2$Dist_road)))
+
+newdata.Hotel<-data.frame(Count_WW= gls.data.2$Count_WW,
+                          Count_Bus=rep(mean(gls.data.2$Count_Bus),length(gls.data.2$Count_Bus)),
+                          Count_Hotel=seq(from=min(gls.data.2$Count_Hotel),to=max(gls.data.2$Count_Hotel),
+                          length.out=length(gls.data.2$Count_Hotel)),Dist_Air=rep(mean(gls.data.2$Dist_Air),
+                        length(gls.data.2$Dist_Air)),Dist_Train=rep(mean(gls.data.2$Dist_Train),
+                        length(gls.data.2$Dist_Train)),Pop_dens=rep(mean(gls.data.2$Pop_dens),
+                        length(gls.data.2$Pop_dens)),Dist_TourOp=rep(mean(gls.data.2$Dist_TourOp),
+                        length(gls.data.2$Dist_TourOp)),Dist_CarPark=rep(mean(gls.data.2$Dist_CarPark),
+                        length(gls.data.2$Dist_CarPark)),Dist_road=rep(mean(gls.data.2$Dist_road),
+                        length(gls.data.2$Dist_road)))
+
+newdata.Air<-data.frame(Count_WW= gls.data.2$Count_WW,
+                        Count_Bus=rep(mean(gls.data.2$Count_Bus),length(gls.data.2$Count_Bus)),
+                          Count_Hotel=rep(mean(gls.data.2$Count_Hotel),length(gls.data.2$Count_Bus)),
+                          Dist_Air=seq(from=min(gls.data.2$Dist_Air),to=max(gls.data.2$Dist_Air),
+                         length.out=length(gls.data.2$Dist_Air)),Dist_Train=rep(mean(gls.data.2$Dist_Train),
+                          length(gls.data.2$Dist_Train)),Pop_dens=rep(mean(gls.data.2$Pop_dens),
+                          length(gls.data.2$Pop_dens)),Dist_TourOp=rep(mean(gls.data.2$Dist_TourOp),
+                          length(gls.data.2$Dist_TourOp)),Dist_CarPark=rep(mean(gls.data.2$Dist_CarPark),
+                          length(gls.data.2$Dist_CarPark)),Dist_road=rep(mean(gls.data.2$Dist_road),
+                          length(gls.data.2$Dist_road)))
+
+
+Bus.preds <- sapply(inf.pred.parms, predict, newdata = newdata.Bus) 
+Bus.ave4plot<-Bus.preds %*% Weights(inf.sel.sub) 
+
+plot(gls.data.2$Count_WW~newdata.Bus$Count_Bus)
+lines(Bus.ave4plot~newdata.Bus$Count_Bus)
+
+Hotel.preds <- sapply(inf.pred.parms, predict, newdata = newdata.Hotel)
+Hotel.ave4plot<-Hotel.preds %*% Weights(inf.sel.sub) 
+
+plot(gls.data.2$Count_WW~newdata.Hotel$Count_Hotel)
+lines(Hotel.ave4plot~newdata.Hotel$Count_Hotel)
+
+
+Air.preds <- sapply(inf.pred.parms, predict, newdata = newdata.Air)
+Air.ave4plot<-Air.preds %*% Weights(inf.sel.sub)
+
+plot(gls.data.2$Count_WW~newdata.Air$Dist_Air)
+lines(Air.ave4plot~newdata.Air$Dist_Air)
+
+
+
