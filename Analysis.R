@@ -1,6 +1,6 @@
 ####################################################
 ###########Francesca Mancini
-###########last modified 28/02/2017
+###########last modified 14/03/2017
 ####################################################
 
 #load required libraries
@@ -431,5 +431,24 @@ Air.ave4plot<-Air.preds %*% Weights(inf.sel.sub)
 plot(gls.data.2$Count_WW~newdata.Air$Dist_Air)
 lines(Air.ave4plot~newdata.Air$Dist_Air)
 
+######################################
+#####Biodiversity
+
+data_sub<-read.table(".//data//CombinedData_v11.txt",stringsAsFactors = F,header=T)
+
+#look at distribution of biodiversity records
+par(mfrow=c(2,1))
+hist(log(data_sub$Records+1),main="Histogram of species records",xlab="Species Records (log)")
+plot(density(log(data_sub$Records+1)),main="Density of species records")
+
+#look at distribution of biodiversity richness
+par(mfrow=c(2,1))
+hist(log(data_sub$Species+1),main="Histogram of species richness",xlab="Species Richness (log)")
+plot(density(log(data_sub$Species+1)),main="Density of species richness")
+
+#look at distribution of species richness where Records are above 7
+par(mfrow=c(2,1))
+hist(log(data_sub$Species[which(data_sub$Records>7)]),main="Histogram of species richness",xlab="Species Richness (log)")
+plot(density(log(data_sub$Species[which(data_sub$Records>7)])),main="Density of species richness")
 
 
