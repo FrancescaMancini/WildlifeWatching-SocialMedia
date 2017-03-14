@@ -1,7 +1,7 @@
 ########################################
 ########Combine data
 ########Francesca Mancini
-########last modified 28/02/2017
+########last modified 14/03/2017
 ########################################
 
 #load the column for distance from marine SAC from the subfolder //data
@@ -16,8 +16,14 @@ data<-read.table(".//data//CombinedData_v9.txt",stringsAsFactors = F,header=T)
 #put data together
 data_new<-cbind(data,new,Dist_MSAC)
 
+#include biodiversity records and species richness
+bio<-read.table(".//data//SpeciesRichness.txt",header=T)
+bio_data<-cbind(data_new,bio[,2:3])
+
+str(bio_data)
+
 #subset the data to exclude all the observations without natural values
-data_sub<-data_new[is.na(data_new$Mean_Nat)==F,]
+data_sub<-bio_data[is.na(bio_data$Mean_Nat)==F,]
 
 write.table(data_sub,".//data//CombinedData_v11.txt", sep="\t", row.names=F)
 
