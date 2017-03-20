@@ -355,15 +355,21 @@ registerDoParallel(cl)          #register the parallel backend
 clusterExport(cl,"gls.data.2")  #export the dataframe to the cluster
 clusterEvalQ(cl,library(nlme))  #load the required package onto the cluster
 
-inf.sel<-pdredge(inf.gls,cluster=cl,rank = "AIC",trace=2)    #model selection for infrastructure model
-
-#,fixed =c(offset(Pop_dens)) include offset(Pop_dens) in all models  
+#model selection for infrastructure model
+inf.sel<-pdredge(inf.gls,cluster=cl,rank = "AIC",trace=2,fixed =c(offset(Pop_dens)))
+# inf.sel<-dredge(inf.gls,trace=2,fixed =c("offset(Pop_dens)"),evaluate=F)
+# include offset(Pop_dens) in all models  
 
 saveRDS(inf.sel,"Infrastructure_sel.rds")
 
-#pdredge(env.gls,cluster=cl,rank = "AIC",trace=2)    #model selection for environmental model
+#model selection for environmental model
+env.sel<-pdredge(env.gls,cluster=cl,rank = "AIC",trace=2,fixed =c("offset(Pop_dens)"))
+# env.sel<-dredge(env.gls,trace=2,fixed =c("offset(Pop_dens)"),evaluate=F)
+str(env.sel)
 
-stopCluster(cl)
+saveRDS(env.sel,"Environment_sel.rds")
+
+#stopCluster(cl)
 
 inf.sel<-readRDS("Infrastructure_sel.rds")
 inf.sel
