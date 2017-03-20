@@ -34,6 +34,7 @@ classification<- summary(clusrecsub,classification=T)
 membership<-classification$classification
 
 table(membership)
+saveRDS(membership,"classification.txt")
 
 
 

@@ -457,4 +457,81 @@ par(mfrow=c(2,1))
 hist(log(data_sub$Species[which(data_sub$Records>7)]),main="Histogram of species richness",xlab="Species Richness (log)")
 plot(density(log(data_sub$Species[which(data_sub$Records>7)])),main="Density of species richness")
 
+###############################
+####Effect of biodiversity 
+###############################
+
+#read classification from mixture model
+classes<-read.table("data/classification.txt")
+
+#calculate log of records
+data_sub$logrec<-log(data_sub$Records+1)
+
+#only select non 0 records
+data.pos<-data_sub[data_sub$logrec>0,]
+
+#now select only records belonging to group 2
+data.gr2<-cbind(data.pos,classes)
+data.gr2<-data.gr2[data.gr2$x==2,]
+str(data.gr2)
+
+##model effect of biodiversity
+
+bio.1<-lm(log10(Count_WW+1)~log10(Species),data=data.gr2)
+summary(bio.1)
+
+par(mfrow=c(2,2))
+plot(bio.1)
+
+#extract the standardised residuals
+S.res.bio.1<-rstandard(bio.1)
+
+#create a spatial dataframe
+mydata_sp<-data.gr2
+coordinates(mydata_sp)<-c("Longitude", "Latitude")
+
+#calculate and plot variograms
+Vario<-variogram(S.res.bio.1~1,data=mydata_sp)
+Variodir<-variogram(S.res.bio.1~1,data=mydata_sp,alpha=c(0,45,90,135))
+
+plot(Vario)
+plot(Variodir)
+
+#make a bubble plot of the residuals to check for spatial patterns
+bubble.data<-data.frame(S.res.bio.1,data.gr2$Longitude,data.gr2$Latitude)
+coordinates(bubble.data)<-c("data.gr2.Longitude","data.gr2.Latitude")
+
+bubble(bubble.data,"S.res.bio.1",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
+
+#####gls
+
+data.bio.gls<-data.frame(Count_WW=log10(data.gr2$Count_WW+1),Species=log10(data.gr2$Species),
+                         x=data.gr2$Longitude,y=data.gr2$Latitude)
+
+
+bio.gls.exp<-gls(Count_WW~ Species,data=data.bio.gls,
+                  correlation=corExp(form=~x+y,nugget=T))
+summary(bio.gls.exp)
+
+res.bio.gls<-residuals(bio.gls.exp,type="normalized")
+fit.bio.gls<-fitted(bio.gls.exp)
+
+plot(res.bio.gls~fit.bio.gls)
+
+qqnorm(res.bio.gls)
+qqline(res.bio.gls)
+
+
+#calculate and plot variograms
+Vario<-variogram(res.bio.gls~1,data=mydata_sp)
+Variodir<-variogram(res.bio.gls~1,data=mydata_sp,alpha=c(0,45,90,135))
+
+plot(Vario)
+plot(Variodir)
+
+#make a bubble plot of the residuals to check for spatial patterns
+bubble.data<-data.frame(res.bio.gls,data.gr2$Longitude,data.gr2$Latitude)
+coordinates(bubble.data)<-c("data.gr2.Longitude","data.gr2.Latitude")
+
+bubble(bubble.data,"res.bio.gls",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
 
