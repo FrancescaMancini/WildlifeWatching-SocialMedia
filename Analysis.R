@@ -528,4 +528,18 @@ Vario<-variogram(res.bio.gls~1,data=mydata_sp)
 
 plot(Vario)
 
+#####calculate and plot predictions
+
+pred_data<-data.frame(Species=seq(from=min(data.bio.gls$Species), 
+                                  to=max(data.bio.gls$Species),by=0.001))
+
+preds<-predict(bio.gls.exp,pred_data,type="link")
+preds<-as.data.frame(preds)
+
+plot(Count_WW~Species,data=data.bio.gls)
+lines(preds$preds~pred_data$Species)
+
+
+
+
 
