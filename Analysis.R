@@ -539,7 +539,32 @@ preds<-as.data.frame(preds)
 plot(Count_WW~Species,data=data.bio.gls)
 lines(preds$preds~pred_data$Species)
 
+#not a very good fit
+#maybe non linear relationship
+#try gam
+
+library(mgcv)
+
+bio.gam<-gam(log10( Count_WW +1 )~s(Species),data=data.gr2)
+summary(bio.gam)
+
+plot(bio.gam)
+gam.check(bio.gam)
+
+pred_data<-data.frame(Species=seq(from=min(data.gr2$Species), 
+                                  to=max(data.gr2$Species),by=0.001))
+
+preds<-predict(bio.gam,pred_data,type="response",se=T)
+preds<-as.data.frame(preds)
+CIup<-preds$fit + 1.96 *preds$se.fit
+CIlow<-preds$fit - 1.96 *preds$se.fit
 
 
+library(scales)
+
+plot(log10(Count_WW +1)~Species,data=data.gr2, pch=20,col=alpha("cadetblue",0.5),xlab="Number of species",ylab="Number of Flickr users")
+lines(preds$fit~pred_data$Species, lwd=3, col="cadetblue")
+lines(CIup~pred_data$Species,lty=2,lwd=2,col="cadetblue")
+lines(CIlow~pred_data$Species,lty=2,lwd=2,col="cadetblue")
 
 
