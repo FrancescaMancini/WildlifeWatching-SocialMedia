@@ -509,29 +509,23 @@ data.bio.gls<-data.frame(Count_WW=log10(data.gr2$Count_WW+1),Species=log10(data.
                          x=data.gr2$Longitude,y=data.gr2$Latitude)
 
 
-bio.gls.exp<-gls(Count_WW~ Species,data=data.bio.gls,
-                  correlation=corExp(form=~x+y,nugget=T))
+bio.gls.exp<-gls(Count_WW~ Species,data=data.bio.gls, correlation=corExp(form=~x+y,nugget=T))
 summary(bio.gls.exp)
 
-res.bio.gls<-residuals(bio.gls.exp,type="normalized")
+res.bio.gls<-residuals(bio.gls.exp, type="normalized")
+
 fit.bio.gls<-fitted(bio.gls.exp)
 
-plot(res.bio.gls~fit.bio.gls)
+plot(res.bio.gls ~ fit.bio.gls)
 
 qqnorm(res.bio.gls)
+
 qqline(res.bio.gls)
 
 
 #calculate and plot variograms
 Vario<-variogram(res.bio.gls~1,data=mydata_sp)
-Variodir<-variogram(res.bio.gls~1,data=mydata_sp,alpha=c(0,45,90,135))
 
 plot(Vario)
-plot(Variodir)
 
-#make a bubble plot of the residuals to check for spatial patterns
-bubble.data<-data.frame(res.bio.gls,data.gr2$Longitude,data.gr2$Latitude)
-coordinates(bubble.data)<-c("data.gr2.Longitude","data.gr2.Latitude")
-
-bubble(bubble.data,"res.bio.gls",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
 
