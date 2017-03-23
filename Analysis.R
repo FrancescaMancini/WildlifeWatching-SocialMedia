@@ -356,7 +356,7 @@ clusterExport(cl,"gls.data.2")  #export the dataframe to the cluster
 clusterEvalQ(cl,library(nlme))  #load the required package onto the cluster
 
 #model selection for infrastructure model
-inf.sel<-pdredge(inf.gls,cluster=cl,rank = "AIC",trace=2,fixed =c(offset(Pop_dens)))
+inf.sel<-pdredge(inf.gls,cluster=cl,rank = "AIC",trace=2,fixed =c("offset(Pop_dens)"))
 # inf.sel<-dredge(inf.gls,trace=2,fixed =c("offset(Pop_dens)"),evaluate=F)
 # include offset(Pop_dens) in all models  
 
@@ -369,7 +369,7 @@ str(env.sel)
 
 saveRDS(env.sel,"Environment_sel.rds")
 
-#stopCluster(cl)
+stopCluster(cl)
 
 inf.sel<-readRDS("Infrastructure_sel.rds")
 inf.sel
@@ -378,11 +378,16 @@ inf.sel.sub<-subset(inf.sel, delta <5)
 
 inf.var.imp<-importance(inf.sel.sub)
 
-inf.avg<-model.avg(inf.sel, subset= delta < 5, revised.var = TRUE) 
+#refit subset of models with REML
+inf.sel.REML<-get.models(inf.sel, subset = delta < 5, method = "REML")
+
+#model averaging
+inf.avg<-model.avg(inf.sel.REML, revised.var = TRUE) 
 summary(inf.avg) 
+
 inf.confint<-confint(inf.avg)
 
-inf.pred.parms<-get.models(inf.sel.sub,subset=T)
+#inf.pred.parms<-get.models(inf.sel.sub,subset=T)
 
 newdata.Bus<-data.frame(Count_WW= gls.data.2$Count_WW,
                         Count_Bus=seq(min(gls.data.2$Count_Bus),max(gls.data.2$Count_Bus),
