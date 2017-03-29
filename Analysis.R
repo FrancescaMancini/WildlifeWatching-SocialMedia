@@ -521,6 +521,7 @@ res.bio.gls<-residuals(bio.gls.exp, type="normalized")
 
 fit.bio.gls<-fitted(bio.gls.exp)
 
+par(mfrow=c(1,2))
 plot(res.bio.gls ~ fit.bio.gls)
 
 qqnorm(res.bio.gls)
