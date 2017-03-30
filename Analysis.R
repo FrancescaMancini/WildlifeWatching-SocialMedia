@@ -86,6 +86,20 @@ gls.data<-data.frame(Count_WW=log10(data_sub$Count_WW+1),Area_WHS=scale(data_sub
                      Dist_road=scale(data_sub$Dist_road,scale=T), Mean_Nat=scale(data_sub$Mean_Nat,scale=T),
                      Pop_dens=log10(data_sub$Pop_dens+1),x=data_sub$Longitude,y=data_sub$Latitude)
 
+#transform coordinates from latlong to utm to avoid issues with correlation structures
+
+library(rgdal)
+
+coordinates(gls.data) <- gls.data[,c(26,27)]
+crs.geo <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84")  # geographical, datum WGS84
+
+proj4string(gls.data) <- crs.geo                             # assign the coordinate system
+
+coords_proj <- spTransform(gls.data, CRS("+proj=utm +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0 "))
+
+gls.data<-cbind(gls.data@data, coords_proj@coords)
+
+names(gls.data)[c(26,27)] <- c("Long","Lat")
 
 #fit the full model with gls
 full.gls<-gls(Count_WW~ Area_WHS +  Area_SPA + Dist_MSAC +Area_SAC_L + Area_RAMSA+ Area_NR +
@@ -134,14 +148,18 @@ full.gls.exp<-gls(Count_WW~ Area_WHS +  Area_SPA + Dist_MSAC +Area_SAC_L + Area_
 #use AIC to choose the best one
 AIC(full.gls,full.gls.sph,full.gls.Lin,full.gls.ratio,full.gls.Gaus,full.gls.exp)
 
-#model with exponential correlation structure is the best model
+#model with ratio correlation structure is the best model
 
 
 
 ###########################################
 ##model selection
 
-gls.data.2<-data.frame(Count_WW=log10(data_sub$Count_WW+1),Area_WHS=scale(data_sub$Area_WHS,scale=T),
+#Variables Area_LSAC and Area_SSSI are collinear 
+#put each in a different model
+#use AIC to pick best model and do model validation
+
+gls.data<-data.frame(Count_WW=log10(data_sub$Count_WW+1),Area_WHS=scale(data_sub$Area_WHS,scale=T),
                        Dist_MSAC=scale(data_sub$Dist_MSAC,scale=T), Area_SPA=scale(data_sub$Area_SPA,scale=T),
                        Area_LSAC=scale(data_sub$Area_SAC_L,scale=T), Area_RAMSA=scale(data_sub$Area_RAMSA,scale=T),
                        Area_NR=scale(data_sub$Area_NR,scale=T), Area_NNR=scale(data_sub$Area_NNR,scale=T),
@@ -154,24 +172,8 @@ gls.data.2<-data.frame(Count_WW=log10(data_sub$Count_WW+1),Area_WHS=scale(data_s
                        Dist_TourOp=scale(data_sub$Dist_TourOp,scale=T), Dist_Train=scale(data_sub$Dist_Train,scale=T),
                        Dist_road=scale(data_sub$Dist_road,scale=T), Mean_Nat=scale(data_sub$Mean_Nat,scale=T),
                        Area_PA=scale(data_sub$Area_PA,scale=T),Count_Inf=log10(data_sub$Count_Inf+1),
-                       Dist_MSAC=scale(data_sub$Dist_MSAC,scale=T),
-                       Pop_dens=log10(data_sub$Pop_dens+1),x=data_sub$Longitude,y=data_sub$Latitude)
-
-gls.data.3<-data.frame(Count_WW=log10(data_sub$Count_WW+1),Area_WHS=scale(data_sub$Area_WHS,scale=T),
-                       Area_SSSI=scale(data_sub$Area_SSSI,scale=T), Area_SPA=scale(data_sub$Area_SPA,scale=T),
-                       Dist_MSAC=scale(data_sub$Dist_MSAC,scale=T), Area_RAMSA=scale(data_sub$Area_RAMSA,scale=T),
-                       Area_NR=scale(data_sub$Area_NR,scale=T), Area_NNR=scale(data_sub$Area_NNR,scale=T),
-                       Dist_MPA=scale(data_sub$Dist_MPA,scale=T), Dist_MCA=scale(data_sub$Dist_MCA,scale=T),
-                       Area_LNR=scale(data_sub$Area_LNR,scale=T), Area_COUNE=scale(data_sub$Area_COUNE,scale=T),
-                       Area_CNTRY=scale(data_sub$Area_CNTRY,scale=T), Area_BIOSP=scale(data_sub$Area_BIOSP,scale=T),
-                       Area_BIOGE=scale(data_sub$Area_BIOGE,scale=T), Area_NP=scale(data_sub$Area_NP,scale=T),
-                       Dist_Air=scale(data_sub$Dist_Air,scale=T), Count_Bus=scale(data_sub$Count_Bus,scale=T),
-                       Count_Hotel=log10(data_sub$Count_Hotel+1), Dist_CarPark=scale(data_sub$Dist_CarPark,scale=T),
-                       Dist_TourOp=scale(data_sub$Dist_TourOp,scale=T), Dist_Train=scale(data_sub$Dist_Train,scale=T),
-                       Dist_road=scale(data_sub$Dist_road,scale=T), Mean_Nat=scale(data_sub$Mean_Nat,scale=T),
-                       Area_PA=scale(data_sub$Area_PA,scale=T),Count_Inf=log10(data_sub$Count_Inf+1),
-                       Dist_MSAC=scale(data_sub$Dist_MSAC,scale=T),
-                       Pop_dens=log10(data_sub$Pop_dens+1),x=data_sub$Longitude,y=data_sub$Latitude)
+                       Dist_MSAC=scale(data_sub$Dist_MSAC,scale=T),Area_SSSI=scale(data_sub$Area_SSSI,scale=T),
+                       Pop_dens=log10(data_sub$Pop_dens+1),x=gls.data$x,y=gls.data$y)
 
 
 
@@ -180,41 +182,34 @@ full.gls.exp.2<-gls(Count_WW~ Area_WHS + Area_LSAC +  Dist_MSAC +Dist_MPA +Dist_
                     Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
                     Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Dist_Air + Count_Bus + 
                     Count_Hotel + Dist_CarPark + Dist_TourOp + Dist_Train  + Dist_road + 
-                    Mean_Nat + offset(Pop_dens),data=gls.data.2,
-                    correlation=corExp(form=~x+y,nugget=T),method="ML")
+                    Mean_Nat + offset(Pop_dens),data=gls.data,
+                    correlation=corRatio(form=~x+y,nugget=T),method="ML")
 
 full.gls.exp.3<-gls(Count_WW~ Area_WHS + Area_SSSI +  Dist_MSAC +Dist_MPA +Dist_MCA +
                     Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
                     Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Dist_Air + Count_Bus + 
                     Count_Hotel + Dist_CarPark + Dist_TourOp + Dist_Train  + Dist_road + 
-                    Mean_Nat + offset(Pop_dens),data=gls.data.3,
-                  correlation=corExp(form=~x+y,nugget=T),method="ML")
+                    Mean_Nat + offset(Pop_dens),data=gls.data,
+                    correlation=corRatio(form=~x+y,nugget=T),method="ML")
 
 AIC(full.gls.exp.2,full.gls.exp.3)
 
-summary(full.gls.exp.2)
 summary(full.gls.exp.3)
 
-plot(full.gls.exp.2)
 
-res.gls<-residuals(full.gls.exp.2,type="normalized")
-fit.gls<-fitted(full.gls.exp.2)
+res.gls<-residuals(full.gls.exp.3,type="normalized")
+fit.gls<-fitted(full.gls.exp.3)
 
 plot(res.gls~fit.gls)
 
 qqnorm(res.gls)
 qqline(res.gls)
 
+
 #check that autocorrelation is not an issue anymore
-Vario.gls.exp<-Variogram(full.gls.exp.2,form= ~x+y,robust=T,resType = "normalized")
+Vario.gls.exp<-Variogram(full.gls.exp.3,form= ~x+y,robust=T,resType = "normalized")
 
 plot(Vario.gls.exp, smooth=F)
-
-bubble.data.gls<-data.frame(res.gls,data_sub$Longitude,data_sub$Latitude)
-coordinates(bubble.data.gls)<-c("data_sub.Longitude","data_sub.Latitude")
-
-bubble(bubble.data.gls,"res.gls",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
-
 
 #fit a model with aggregated variables
 
@@ -226,16 +221,32 @@ preds.agg<-data_sub[,c("Area_PA","Mean_Nat","Count_Inf")]
 source("Collinearity")
 VIF<-corvif(preds.agg)
 
-agg.gls<-gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf + offset(Pop_dens),data=gls.data.2,
-             correlation=corExp(form=~x+y,nugget=T),method="ML")
+agg.gls.ratio<-gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf + offset(Pop_dens),data=gls.data,
+             correlation=corRatio(form=~x+y,nugget=T))
 
-summary(agg.gls)
+agg.gls.sph<-gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf + offset(Pop_dens),data=gls.data,
+                   correlation=corSpher(form=~x+y,nugget=T))
+
+agg.gls.Lin<-gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf + offset(Pop_dens),data=gls.data,
+                 correlation=corLin(form=~x+y,nugget=T))
+
+agg.gls.Gaus<-gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf + offset(Pop_dens),data=gls.data,
+                 correlation=corGaus(form=~x+y,nugget=T))
+
+agg.gls.exp<-gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf + offset(Pop_dens),data=gls.data,
+                  correlation=corExp(form=~x+y,nugget=T))
+
+AIC(agg.gls.ratio, agg.gls.sph, agg.gls.Lin, agg.gls.Gaus, agg.gls.exp)
+
+#Spherical autocrrelation structure is the best one
+
+summary(agg.gls.sph)
+
 
 #check for patterns in the residuals
-plot(agg.gls)
 
-res.agg.gls<-residuals(agg.gls,type="normalized")
-fit.agg.gls<-fitted(agg.gls)
+res.agg.gls<-residuals(agg.gls.sph,type="normalized")
+fit.agg.gls<-fitted(agg.gls.sph)
 
 plot(res.agg.gls~fit.agg.gls)
 
@@ -243,44 +254,60 @@ qqnorm(res.agg.gls)
 qqline(res.agg.gls)
 
 #check that autocorrelation is not an issue anymore
-Vario.agg.gls<-Variogram(agg.gls,form= ~x+y,robust=T,resType = "normalized")
+Vario.agg.gls<-Variogram(agg.gls.sph,form= ~x+y,robust=T,resType = "normalized")
 
 plot(Vario.agg.gls, smooth=F)
 
-bubble.data.agg.gls<-data.frame(res.agg.gls,data_sub$Longitude,data_sub$Latitude)
-coordinates(bubble.data.agg.gls)<-c("data_sub.Longitude","data_sub.Latitude")
 
-bubble(bubble.data.agg.gls,"res.agg.gls",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
-
-
-#all variables have an effect on the response therefore fit an environmental and an infrastructure model
-#to select important variables
+# all variables but MeanNat have an effect on the response 
+# fit an environmental and an infrastructure model
+# to select important variables
 
 #Environment
 
-preds.env<-data_sub[,c("Area_WHS","Area_SPA","Area_SAC_L","Area_RAMSA","Area_NR","Area_NNR",
+preds.env<-data_sub[,c("Area_WHS","Area_SPA","Area_SAC_L","Area_SSSI","Area_RAMSA","Area_NR","Area_NNR",
                    "Dist_MPA","Dist_MCA","Area_LNR","Area_COUNE","Area_CNTRY","Area_BIOSP","Area_BIOGE",
                    "Area_NP","Mean_Nat","Dist_MSAC")]
 
 #then calculate variance inflation factor
 
 #calculate VIF
-source("Collinearity")
+source("Collinearity.R")
 VIF<-corvif(preds.env)
 
 
-env.gls<-gls(Count_WW~ Area_WHS + Area_LSAC +  Dist_MSAC +Dist_MPA +Dist_MCA +
+env.gls.exp<-gls(Count_WW~ Area_WHS + Area_LSAC + Area_SSSI + Dist_MSAC +Dist_MPA +Dist_MCA +
                Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
                Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Mean_Nat + 
-               offset(Pop_dens),data=gls.data.2, correlation=corExp(form=~x+y,nugget=T),method="ML")
+               offset(Pop_dens),data=gls.data, correlation=corExp(form=~x+y,nugget=T))
 
-summary(env.gls)
+env.gls.ratio<-gls(Count_WW~ Area_WHS + Area_LSAC + Area_SSSI + Dist_MSAC +Dist_MPA +Dist_MCA +
+               Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
+               Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Mean_Nat + 
+               offset(Pop_dens),data=gls.data, correlation=corRatio(form=~x+y,nugget=T))
+
+env.gls.sph<-gls(Count_WW~ Area_WHS + Area_LSAC + Area_SSSI + Dist_MSAC +Dist_MPA +Dist_MCA +
+                 Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
+                 Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Mean_Nat + 
+                 offset(Pop_dens),data=gls.data, correlation=corSpher(form=~x+y,nugget=T))
+
+env.gls.Lin<-gls(Count_WW~ Area_WHS + Area_LSAC + Area_SSSI + Dist_MSAC +Dist_MPA +Dist_MCA +
+                 Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
+                 Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Mean_Nat + 
+                 offset(Pop_dens),data=gls.data,correlation=corLin(form=~x+y,nugget=T))
+
+env.gls.Gaus<-gls(Count_WW~ Area_WHS + Area_LSAC + Area_SSSI + Dist_MSAC +Dist_MPA +Dist_MCA +
+                  Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
+                  Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Mean_Nat + 
+                  offset(Pop_dens),data=gls.data,correlation=corGaus(form=~x+y,nugget=T))
+
+AIC(env.gls.exp, env.gls.ratio, env.gls.sph, env.gls.Lin, env.gls.Gaus)
+
 
 #check for patterns in the residuals
-plot(env.gls)
 
-res.env.gls<-residuals(env.gls,type="normalized")
-fit.env.gls<-fitted(env.gls)
+res.env.gls<-residuals(env.gls.exp,type="normalized")
+fit.env.gls<-fitted(env.gls.exp)
 
 plot(res.env.gls~fit.env.gls)
 
@@ -288,14 +315,10 @@ qqnorm(res.env.gls)
 qqline(res.env.gls)
 
 #check that autocorrelation is not an issue anymore
-Vario.env.gls<-Variogram(env.gls,form= ~x+y,robust=T,resType = "normalized")
+Vario.env.gls<-Variogram(env.gls.exp,form= ~x+y,robust=T,resType = "normalized")
 
 plot(Vario.env.gls, smooth=F)
 
-bubble.data.env.gls<-data.frame(res.env.gls,gls.data.2$x,gls.data.2$y)
-coordinates(bubble.data.env.gls)<-c("gls.data.2.x","gls.data.2.y")
-
-bubble(bubble.data.env.gls,"res.env.gls",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
 
 ####Infrastructure
 
@@ -307,21 +330,37 @@ preds.inf<-data_sub[,c("Dist_Air","Count_Bus","Count_Hotel","Dist_CarPark","Dist
 #then calculate variance inflation factor
 
 #calculate VIF
-source("Collinearity")
+source("Collinearity.R")
 VIF<-corvif(preds.inf)
 
 
-inf.gls<-gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-               Dist_Train  + Dist_road +offset(Pop_dens),data=gls.data.2,
-             correlation=corExp(form=~x+y,nugget=T),method="ML")
+inf.gls.exp<-gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
+                 Dist_Train  + Dist_road +offset(Pop_dens),data=gls.data,
+                 correlation=corExp(form=~x+y,nugget=T))
 
-summary(inf.gls)
+inf.gls.sph<-gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
+                 Dist_Train  + Dist_road +offset(Pop_dens),data=gls.data,
+                 correlation=corSpher(form=~x+y,nugget=T))
+
+inf.gls.ratio<-gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
+                   Dist_Train  + Dist_road +offset(Pop_dens),data=gls.data,
+                   correlation=corRatio(form=~x+y,nugget=T))
+
+inf.gls.Lin<-gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
+                 Dist_Train  + Dist_road +offset(Pop_dens),data=gls.data,
+                 correlation=corLin(form=~x+y,nugget=T))
+
+inf.gls.Gaus<-gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
+                  Dist_Train  + Dist_road +offset(Pop_dens),data=gls.data,
+                  correlation=corGaus(form=~x+y,nugget=T))
+
+AIC(inf.gls.exp, inf.gls.sph, inf.gls.ratio, inf.gls.Lin, inf.gls.Gaus)
+
 
 #check for patterns in the residuals
-plot(inf.gls)
 
-res.inf.gls<-residuals(inf.gls,type="normalized")
-fit.inf.gls<-fitted(inf.gls)
+res.inf.gls<-residuals(inf.gls.exp,type="normalized")
+fit.inf.gls<-fitted(inf.gls.exp)
 
 plot(res.inf.gls~fit.inf.gls)
 
@@ -329,18 +368,9 @@ qqnorm(res.inf.gls)
 qqline(res.inf.gls)
 
 #check that autocorrelation is not an issue anymore
-Vario.inf.gls<-Variogram(inf.gls,form= ~x+y,robust=T,resType = "normalized")
+Vario.inf.gls<-Variogram(inf.gls.exp,form= ~x+y,robust=T,resType = "normalized")
 
 plot(Vario.inf.gls, smooth=F)
-
-bubble.data.inf.gls<-data.frame(res.inf.gls,gls.data.2$x,gls.data.2$y)
-coordinates(bubble.data.inf.gls)<-c("gls.data.2.x","gls.data.2.y")
-
-bubble(bubble.data.inf.gls,"res.inf.gls",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
-
-
-AIC(full.gls.exp.2, agg.gls, env.gls, inf.gls)
-
 
 
 #now use dredge to find best combination of variables for both env and infr models
@@ -352,19 +382,20 @@ library(MuMIn)
 
 cl <- makeCluster(3)            #split into 3 cores
 registerDoParallel(cl)          #register the parallel backend
-clusterExport(cl,"gls.data.2")  #export the dataframe to the cluster
+clusterExport(cl,"gls.data")  #export the dataframe to the cluster
 clusterEvalQ(cl,library(nlme))  #load the required package onto the cluster
 
 #model selection for infrastructure model
-inf.sel<-pdredge(inf.gls,cluster=cl,rank = "AIC",trace=2,fixed =c("offset(Pop_dens)"))
-# inf.sel<-dredge(inf.gls,trace=2,fixed =c("offset(Pop_dens)"),evaluate=F)
-# include offset(Pop_dens) in all models  
+inf.sel<-pdredge(inf.gls.exp,cluster=cl,rank = "AICc",trace=2, REML = FALSE,
+                 fixed =c("offset(Pop_dens)"))   # include offset(Pop_dens) in all models
+  
 
 saveRDS(inf.sel,"Infrastructure_sel.rds")
 
 #model selection for environmental model
-env.sel<-pdredge(env.gls,cluster=cl,rank = "AIC",trace=2,fixed =c("offset(Pop_dens)"))
-# env.sel<-dredge(env.gls,trace=2,fixed =c("offset(Pop_dens)"),evaluate=F)
+env.sel<-pdredge(env.gls,cluster=cl,rank = "AICc",trace=2, REML = FALSE,
+                 fixed =c("offset(Pop_dens)"),# include offset(Pop_dens) in all models
+                 subset["Area_SSSI", "Area_LSAC"] == FALSE) #do not include collinear variables in the same model
 str(env.sel)
 
 saveRDS(env.sel,"Environment_sel.rds")
@@ -389,57 +420,57 @@ inf.confint<-confint(inf.avg)
 
 #inf.pred.parms<-get.models(inf.sel.sub,subset=T)
 
-newdata.Bus<-data.frame(Count_WW= gls.data.2$Count_WW,
-                        Count_Bus=seq(min(gls.data.2$Count_Bus),max(gls.data.2$Count_Bus),
-                        length.out=length(gls.data.2$Count_Bus)), Count_Hotel=rep(mean(gls.data.2$Count_Hotel),
-                        length(gls.data.2$Count_Bus)),Dist_Air=rep(mean(gls.data.2$Dist_Air),
-                        length(gls.data.2$Dist_Air)),Dist_Train=rep(mean(gls.data.2$Dist_Train),
-                        length(gls.data.2$Dist_Train)),Pop_dens=rep(mean(gls.data.2$Pop_dens),
-                        length(gls.data.2$Pop_dens)),Dist_TourOp=rep(mean(gls.data.2$Dist_TourOp),
-                        length(gls.data.2$Dist_TourOp)),Dist_CarPark=rep(mean(gls.data.2$Dist_CarPark),
-                        length(gls.data.2$Dist_CarPark)),Dist_road=rep(mean(gls.data.2$Dist_road),
-                        length(gls.data.2$Dist_road)))
+newdata.Bus<-data.frame(Count_WW= gls.data$Count_WW,
+                        Count_Bus=seq(min(gls.data$Count_Bus),max(gls.data$Count_Bus),
+                        length.out=length(gls.data$Count_Bus)), Count_Hotel=rep(mean(gls.data$Count_Hotel),
+                        length(gls.data$Count_Bus)),Dist_Air=rep(mean(gls.data$Dist_Air),
+                        length(gls.data$Dist_Air)),Dist_Train=rep(mean(gls.data$Dist_Train),
+                        length(gls.data$Dist_Train)),Pop_dens=rep(mean(gls.data$Pop_dens),
+                        length(gls.data$Pop_dens)),Dist_TourOp=rep(mean(gls.data$Dist_TourOp),
+                        length(gls.data$Dist_TourOp)),Dist_CarPark=rep(mean(gls.data$Dist_CarPark),
+                        length(gls.data$Dist_CarPark)),Dist_road=rep(mean(gls.data$Dist_road),
+                        length(gls.data$Dist_road)))
 
-newdata.Hotel<-data.frame(Count_WW= gls.data.2$Count_WW,
-                          Count_Bus=rep(mean(gls.data.2$Count_Bus),length(gls.data.2$Count_Bus)),
-                          Count_Hotel=seq(from=min(gls.data.2$Count_Hotel),to=max(gls.data.2$Count_Hotel),
-                          length.out=length(gls.data.2$Count_Hotel)),Dist_Air=rep(mean(gls.data.2$Dist_Air),
-                        length(gls.data.2$Dist_Air)),Dist_Train=rep(mean(gls.data.2$Dist_Train),
-                        length(gls.data.2$Dist_Train)),Pop_dens=rep(mean(gls.data.2$Pop_dens),
-                        length(gls.data.2$Pop_dens)),Dist_TourOp=rep(mean(gls.data.2$Dist_TourOp),
-                        length(gls.data.2$Dist_TourOp)),Dist_CarPark=rep(mean(gls.data.2$Dist_CarPark),
-                        length(gls.data.2$Dist_CarPark)),Dist_road=rep(mean(gls.data.2$Dist_road),
-                        length(gls.data.2$Dist_road)))
+newdata.Hotel<-data.frame(Count_WW= gls.data$Count_WW,
+                          Count_Bus=rep(mean(gls.data$Count_Bus),length(gls.data$Count_Bus)),
+                          Count_Hotel=seq(from=min(gls.data$Count_Hotel),to=max(gls.data$Count_Hotel),
+                          length.out=length(gls.data$Count_Hotel)),Dist_Air=rep(mean(gls.data$Dist_Air),
+                        length(gls.data$Dist_Air)),Dist_Train=rep(mean(gls.data$Dist_Train),
+                        length(gls.data$Dist_Train)),Pop_dens=rep(mean(gls.data$Pop_dens),
+                        length(gls.data$Pop_dens)),Dist_TourOp=rep(mean(gls.data$Dist_TourOp),
+                        length(gls.data$Dist_TourOp)),Dist_CarPark=rep(mean(gls.data$Dist_CarPark),
+                        length(gls.data$Dist_CarPark)),Dist_road=rep(mean(gls.data$Dist_road),
+                        length(gls.data$Dist_road)))
 
-newdata.Air<-data.frame(Count_WW= gls.data.2$Count_WW,
-                        Count_Bus=rep(mean(gls.data.2$Count_Bus),length(gls.data.2$Count_Bus)),
-                          Count_Hotel=rep(mean(gls.data.2$Count_Hotel),length(gls.data.2$Count_Bus)),
-                          Dist_Air=seq(from=min(gls.data.2$Dist_Air),to=max(gls.data.2$Dist_Air),
-                         length.out=length(gls.data.2$Dist_Air)),Dist_Train=rep(mean(gls.data.2$Dist_Train),
-                          length(gls.data.2$Dist_Train)),Pop_dens=rep(mean(gls.data.2$Pop_dens),
-                          length(gls.data.2$Pop_dens)),Dist_TourOp=rep(mean(gls.data.2$Dist_TourOp),
-                          length(gls.data.2$Dist_TourOp)),Dist_CarPark=rep(mean(gls.data.2$Dist_CarPark),
-                          length(gls.data.2$Dist_CarPark)),Dist_road=rep(mean(gls.data.2$Dist_road),
-                          length(gls.data.2$Dist_road)))
+newdata.Air<-data.frame(Count_WW= gls.data$Count_WW,
+                        Count_Bus=rep(mean(gls.data$Count_Bus),length(gls.data$Count_Bus)),
+                          Count_Hotel=rep(mean(gls.data$Count_Hotel),length(gls.data$Count_Bus)),
+                          Dist_Air=seq(from=min(gls.data$Dist_Air),to=max(gls.data$Dist_Air),
+                         length.out=length(gls.data$Dist_Air)),Dist_Train=rep(mean(gls.data$Dist_Train),
+                          length(gls.data$Dist_Train)),Pop_dens=rep(mean(gls.data$Pop_dens),
+                          length(gls.data$Pop_dens)),Dist_TourOp=rep(mean(gls.data$Dist_TourOp),
+                          length(gls.data$Dist_TourOp)),Dist_CarPark=rep(mean(gls.data$Dist_CarPark),
+                          length(gls.data$Dist_CarPark)),Dist_road=rep(mean(gls.data$Dist_road),
+                          length(gls.data$Dist_road)))
 
 
 Bus.preds <- sapply(inf.pred.parms, predict, newdata = newdata.Bus) 
 Bus.ave4plot<-Bus.preds %*% Weights(inf.sel.sub) 
 
-plot(gls.data.2$Count_WW~newdata.Bus$Count_Bus)
+plot(gls.data$Count_WW~newdata.Bus$Count_Bus)
 lines(Bus.ave4plot~newdata.Bus$Count_Bus)
 
 Hotel.preds <- sapply(inf.pred.parms, predict, newdata = newdata.Hotel)
 Hotel.ave4plot<-Hotel.preds %*% Weights(inf.sel.sub) 
 
-plot(gls.data.2$Count_WW~newdata.Hotel$Count_Hotel)
+plot(gls.data$Count_WW~newdata.Hotel$Count_Hotel)
 lines(Hotel.ave4plot~newdata.Hotel$Count_Hotel)
 
 
 Air.preds <- sapply(inf.pred.parms, predict, newdata = newdata.Air)
 Air.ave4plot<-Air.preds %*% Weights(inf.sel.sub)
 
-plot(gls.data.2$Count_WW~newdata.Air$Dist_Air)
+plot(gls.data$Count_WW~newdata.Air$Dist_Air)
 lines(Air.ave4plot~newdata.Air$Dist_Air)
 
 ######################################
