@@ -2,11 +2,13 @@
 title: "AnalysisReport"
 author: "Francesca Mancini"
 date: "28 February 2017"
-output: word_document
+output:
+  word_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(cache=TRUE, fig.align="center")
+knitr::opts_chunk$set(fig.align="center")
 ```
 
 Load required libraries and dataset.
@@ -130,7 +132,7 @@ gls.data<-data.frame(Count_WW=log10(data_sub$Count_WW+1),Area_WHS=scale(data_sub
 
 Then we fit the full model with gls without any correlation structure.
 
-```{r gls.full.1}
+```{r gls.full.1, cache=TRUE}
 full.gls<-gls(Count_WW~ Area_WHS +  Area_SPA + Dist_MSAC +Area_SAC_L + Area_RAMSA+ Area_NR +
                 Area_NNR+ Dist_MPA + Dist_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
                 Area_BIOGE + Area_NP + Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
@@ -140,7 +142,7 @@ full.gls<-gls(Count_WW~ Area_WHS +  Area_SPA + Dist_MSAC +Area_SAC_L + Area_RAMS
 
 Now we fit the same model with different autocorrelation structures.
 
-```{r gls.full.2}
+```{r gls.full.2, cache=TRUE}
 full.gls.sph<-gls(Count_WW~ Area_WHS +  Area_SPA + Dist_MSAC +Area_SAC_L + Area_RAMSA+ Area_NR +
                     Area_NNR+ Dist_MPA + Dist_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
                     Area_BIOGE + Area_NP + Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
@@ -224,7 +226,7 @@ gls.data.3<-data.frame(Count_WW=log10(data_sub$Count_WW+1),Area_WHS=scale(data_s
 
 Now we fit the models with the two collinear variables and compared them with AIC.
 
-```{r gls.full.3}
+```{r gls.full.3, cache=TRUE}
 full.gls.exp.2<-gls(Count_WW~ Area_WHS + Area_LSAC +  Dist_MSAC +Dist_MPA +Dist_MCA +
                     Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
                     Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Dist_Air + Count_Bus + 
@@ -285,7 +287,7 @@ Now we can start selecting important variables for the model.
 First we can fit a model with aggregated variables: the total area of the cell that is occupied by a reserve, the total number of infrastructures and the mean naturalness.
 This will test whether environmental, socio-economic infrastrcture or the naturalness is the strogest attractor for tourists.
 
-```{r agg.gls}
+```{r agg.gls, cache=TRUE}
 agg.gls<-gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf + offset(Pop_dens),data=gls.data.2,
              correlation=corExp(form=~x+y,nugget=T),method="ML")
 
@@ -316,7 +318,7 @@ We can now fit an environmental model and an infrastructure model to select whic
 
 #####Environmental model
 
-```{r env.gls}
+```{r env.gls, cache=TRUE}
 env.gls<-gls(Count_WW~ Area_WHS + Area_LSAC +  Dist_MSAC +Dist_MPA +Dist_MCA +
                Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
                Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Mean_Nat + 
@@ -348,7 +350,7 @@ Results are similar to the full odel with the ecceptuion of RAMSAR not being sig
 
 #####Infrastructure model
 
-```{r inf.gls}
+```{r inf.gls, cache=TRUE}
 inf.gls<-gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
                Dist_Train  + Dist_road +offset(Pop_dens),data=gls.data.2,
              correlation=corExp(form=~x+y,nugget=T),method="ML")
@@ -440,5 +442,214 @@ summary(inf.avg)
 ```
 
 Only the number of bus stations, hotels and the distance for an airport have a significant effect on the number of tourists that visit an area.
+
+### Biodiversity 
+
+The spatial distribution of the biodiversity records is overlapping that of Flickr data. There are areas that lack access infrastructure where people are not able to go to record biodiversity or for recreational purposes. So we exclude these areas from this analysis. Once we account for infrastructure and amenities, is species richness an attractor in areas that are easily accessible? 
+
+We first look at the distribution of the biodiversity records.
+
+```{r BioDistr}
+par(mfrow=c(2,1))
+hist(log(data_sub$Records+1),main="Histogram of species records",xlab="Species Records (log)")
+plot(density(log(data_sub$Records+1)),main="Density of species records")
+```
+
+There is obviously a bimodal distribution with most of the cells having 0 records and then the distribution has another peak around 54.
+
+Now we look at the distribution of species richness.
+
+```{r SpecRichDist}
+par(mfrow=c(2,1))
+hist(log(data_sub$Species+1),main="Histogram of species richness",xlab="Species Richness (log)")
+plot(density(log(data_sub$Species+1)),main="Density of species richness")
+```
+
+Very similar story for the species richness.
+
+
+#### Subsetting
+We can identify the two distributions that these data come from by using a mixture model.
+
+```{r MixMod, eval=FALSE}
+library(mclust)
+
+#create variable log of number of records
+data_sub$logrec<-log(data_sub$Records+1)
+
+#Produces a density estimate for each data point using a Gaussian finite mixture model from Mclust.
+clusrec<-densityMclust(data_sub$logrec,G=2)     #G=2 we know that there are 2 groups (low and high)
+
+#plot the distribution
+plot(clusrec, what = "density", data = data_sub$logrec, breaks = 15)
+
+#Very high nuber of 0s 
+
+#remove 0 records
+sublogrec<-data_sub$logrec[data_sub$logrec>0]
+
+#refit mixture model without 0s
+clusrecsub<-densityMclust(sublogrec,G=2)
+
+#plot
+plot(clusrecsub, what = "density", data = sublogrec, breaks = 15)
+
+#returns a summary of the model
+classification<- summary(clusrecsub,classification=T)
+
+#classification of each datapoint into the two groups is then in:
+membership<-classification$classification
+
+table(membership)
+write.table(membership,"data/classification.txt")
+```
+
+
+Read classification from mixture model
+
+```{r readClass}
+classes<-read.table("data/classification.txt")
+```
+
+
+Now we use this classification to subset our dataset and only select records that are in an area that is accessible to people.
+
+```{r Subset}
+data_sub$logrec<-log(data_sub$Records+1)
+
+#only select non 0 records
+data.pos<-data_sub[data_sub$logrec>0,]
+
+#now select only records belonging to group 2
+data.gr2<-cbind(data.pos,classes)
+data.gr2<-data.gr2[data.gr2$x==2,]
+#str(data.gr2)
+```
+
+#### Effect of biodiversity
+
+Now we can model the effect of biodiversity. First we try a simple linear model with both variables logtransformed.
+We exclude the offset for population size because the exclusion of low records cells should already take care of that.
+
+```{r BioLm}
+bio.1<-lm(log10(Count_WW+1)~log10(Species),data=data.gr2)
+summary(bio.1)
+```
+
+Check model assumptions.
+
+```{r BioLmCheck}
+par(mfrow=c(2,2))
+plot(bio.1)
+```
+
+Check for spatial autocorrelation by extracting the standardised residuals ad plotting a variogram.
+
+
+```{r BioLmSpatialCheck}
+S.res.bio.1<-rstandard(bio.1)
+#create a spatial dataframe
+mydata_sp<-data.gr2
+coordinates(mydata_sp)<-c("Longitude", "Latitude")
+
+#calculate and plot variograms
+Vario<-variogram(S.res.bio.1~1,data=mydata_sp)
+Variodir<-variogram(S.res.bio.1~1,data=mydata_sp,alpha=c(0,45,90,135))
+
+plot(Vario)
+plot(Variodir)
+```
+
+The residuals are spatially correlated.
+
+Use gls to include a crrelation structure. Since we are working on the same data we can use the same correlation structure that we used in the previous models.
+We prepare the dataset and fit the model with both response and explanatory variables logtransformed.
+
+```{r BioGlsData}
+data.bio.gls<-data.frame(Count_WW=log10(data.gr2$Count_WW+1),Species=log10(data.gr2$Species),
+                         x=data.gr2$Longitude,y=data.gr2$Latitude)
+```
+
+```{r BioGls, cache=TRUE}
+bio.gls.exp<-gls(Count_WW~ Species,data=data.bio.gls, correlation=corExp(form=~x+y,nugget=T))
+summary(bio.gls.exp)
+```
+
+We check for violations of model assumptions
+
+```{r BioGlsCheck}
+res.bio.gls<-residuals(bio.gls.exp, type="normalized")
+
+fit.bio.gls<-fitted(bio.gls.exp)
+
+par(mfrow=c(1,2))
+plot(res.bio.gls ~ fit.bio.gls)
+
+qqnorm(res.bio.gls)
+
+qqline(res.bio.gls)
+```
+
+
+Check if autocorrelation was fixed.
+
+```{r BioGlsSpatialCheck}
+Vario<-variogram(res.bio.gls~1,data=mydata_sp)
+
+plot(Vario)
+```
+
+No more autocorrelation.
+We can check the fit by plotting predictions on top of the data.
+
+```{r BioGlsPred, cache=TRUE}
+# pred_data<-data.frame(Species=seq(from=min(data.bio.gls$Species), 
+#                                   to=max(data.bio.gls$Species),by=0.001))
+# 
+# preds<-predict(bio.gls.exp,pred_data,type="link")
+# preds<-as.data.frame(preds)
+# 
+# plot(Count_WW~Species,data=data.bio.gls)
+# lines(preds$preds~pred_data$Species)
+```
+
+Not a good fit. The relationship does not look linear, therefore we can try fitting a gam to the logtransformed response with a spline for the number of species.
+
+```{r BioGam}
+library(mgcv)
+
+bio.gam<-gam(log10( Count_WW +1 )~s(Species),data=data.gr2)
+summary(bio.gam)
+```
+
+Diagnostic plots
+
+```{r BioGamCheck}
+gam.check(bio.gam)
+```
+
+Could be better.
+
+Look at the fit.
+
+```{r BioGamPred}
+pred_data<-data.frame(Species=seq(from=min(data.gr2$Species), 
+                                  to=max(data.gr2$Species),by=0.001))
+
+preds<-predict(bio.gam,pred_data,type="response",se=T)
+preds<-as.data.frame(preds)
+CIup<-preds$fit + 1.96 *preds$se.fit
+CIlow<-preds$fit - 1.96 *preds$se.fit
+
+
+library(scales)
+
+plot(log10(Count_WW +1)~Species,data=data.gr2, pch=20,col=alpha("cadetblue",0.5),xlab="Number of species",ylab="Number of Flickr users")
+lines(preds$fit~pred_data$Species, lwd=3, col="cadetblue")
+lines(CIup~pred_data$Species,lty=2,lwd=2,col="cadetblue")
+lines(CIlow~pred_data$Species,lty=2,lwd=2,col="cadetblue")
+```
+
+Better fit.
 
 
