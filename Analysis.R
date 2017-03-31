@@ -1,7 +1,9 @@
-####################################################
-###########Francesca Mancini
-###########last modified 14/03/2017
-####################################################
+# Script for statistical analysis of "Modelling the distribution of wildlife watchers using social media"
+# Francesca Mancini
+# last modified 05/04/2017
+
+
+# Linear models #####
 
 #load required libraries
 library(gstat)
@@ -64,9 +66,9 @@ coordinates(bubble.data)<-c("data_sub.Longitude","data_sub.Latitude")
 
 bubble(bubble.data,"S.res.lm",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
 
-##########################################
-#######fix autocorrelation with GLS
-##########################################
+
+# Full GLS and selection of autocorrelation structure ######
+
 
 #load required library
 library(nlme)
@@ -152,66 +154,7 @@ AIC(full.gls,full.gls.sph,full.gls.Lin,full.gls.ratio,full.gls.Gaus,full.gls.exp
 
 
 
-###########################################
-##model selection
-
-#Variables Area_LSAC and Area_SSSI are collinear 
-#put each in a different model
-#use AIC to pick best model and do model validation
-
-gls.data<-data.frame(Count_WW=log10(data_sub$Count_WW+1),Area_WHS=scale(data_sub$Area_WHS,scale=T),
-                       Dist_MSAC=scale(data_sub$Dist_MSAC,scale=T), Area_SPA=scale(data_sub$Area_SPA,scale=T),
-                       Area_LSAC=scale(data_sub$Area_SAC_L,scale=T), Area_RAMSA=scale(data_sub$Area_RAMSA,scale=T),
-                       Area_NR=scale(data_sub$Area_NR,scale=T), Area_NNR=scale(data_sub$Area_NNR,scale=T),
-                       Dist_MPA=scale(data_sub$Dist_MPA,scale=T), Dist_MCA=scale(data_sub$Dist_MCA,scale=T),
-                       Area_LNR=scale(data_sub$Area_LNR,scale=T), Area_COUNE=scale(data_sub$Area_COUNE,scale=T),
-                       Area_CNTRY=scale(data_sub$Area_CNTRY,scale=T), Area_BIOSP=scale(data_sub$Area_BIOSP,scale=T),
-                       Area_BIOGE=scale(data_sub$Area_BIOGE,scale=T), Area_NP=scale(data_sub$Area_NP,scale=T),
-                       Dist_Air=scale(data_sub$Dist_Air,scale=T), Count_Bus=scale(data_sub$Count_Bus,scale=T),
-                       Count_Hotel=log10(data_sub$Count_Hotel+1), Dist_CarPark=scale(data_sub$Dist_CarPark,scale=T),
-                       Dist_TourOp=scale(data_sub$Dist_TourOp,scale=T), Dist_Train=scale(data_sub$Dist_Train,scale=T),
-                       Dist_road=scale(data_sub$Dist_road,scale=T), Mean_Nat=scale(data_sub$Mean_Nat,scale=T),
-                       Area_PA=scale(data_sub$Area_PA,scale=T),Count_Inf=log10(data_sub$Count_Inf+1),
-                       Dist_MSAC=scale(data_sub$Dist_MSAC,scale=T),Area_SSSI=scale(data_sub$Area_SSSI,scale=T),
-                       Pop_dens=log10(data_sub$Pop_dens+1),x=gls.data$x,y=gls.data$y)
-
-
-
-#fit the full model
-full.gls.exp.2<-gls(Count_WW~ Area_WHS + Area_LSAC +  Dist_MSAC +Dist_MPA +Dist_MCA +
-                    Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
-                    Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Dist_Air + Count_Bus + 
-                    Count_Hotel + Dist_CarPark + Dist_TourOp + Dist_Train  + Dist_road + 
-                    Mean_Nat + offset(Pop_dens),data=gls.data,
-                    correlation=corRatio(form=~x+y,nugget=T),method="ML")
-
-full.gls.exp.3<-gls(Count_WW~ Area_WHS + Area_SSSI +  Dist_MSAC +Dist_MPA +Dist_MCA +
-                    Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
-                    Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Dist_Air + Count_Bus + 
-                    Count_Hotel + Dist_CarPark + Dist_TourOp + Dist_Train  + Dist_road + 
-                    Mean_Nat + offset(Pop_dens),data=gls.data,
-                    correlation=corRatio(form=~x+y,nugget=T),method="ML")
-
-AIC(full.gls.exp.2,full.gls.exp.3)
-
-summary(full.gls.exp.3)
-
-
-res.gls<-residuals(full.gls.exp.3,type="normalized")
-fit.gls<-fitted(full.gls.exp.3)
-
-plot(res.gls~fit.gls)
-
-qqnorm(res.gls)
-qqline(res.gls)
-
-
-#check that autocorrelation is not an issue anymore
-Vario.gls.exp<-Variogram(full.gls.exp.3,form= ~x+y,robust=T,resType = "normalized")
-
-plot(Vario.gls.exp, smooth=F)
-
-#fit a model with aggregated variables
+# Aggregated variables #######
 
 preds.agg<-data_sub[,c("Area_PA","Mean_Nat","Count_Inf")]
 
@@ -263,7 +206,7 @@ plot(Vario.agg.gls, smooth=F)
 # fit an environmental and an infrastructure model
 # to select important variables
 
-#Environment
+# Environmental infrastructure model #######
 
 preds.env<-data_sub[,c("Area_WHS","Area_SPA","Area_SAC_L","Area_SSSI","Area_RAMSA","Area_NR","Area_NNR",
                    "Dist_MPA","Dist_MCA","Area_LNR","Area_COUNE","Area_CNTRY","Area_BIOSP","Area_BIOGE",
@@ -275,6 +218,9 @@ preds.env<-data_sub[,c("Area_WHS","Area_SPA","Area_SAC_L","Area_SSSI","Area_RAMS
 source("Collinearity.R")
 VIF<-corvif(preds.env)
 
+#Variables Area_SAC_L and Area_SSSI are collinear 
+
+# Select best correlation structure
 
 env.gls.exp<-gls(Count_WW~ Area_WHS + Area_LSAC + Area_SSSI + Dist_MSAC +Dist_MPA +Dist_MCA +
                Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
@@ -320,10 +266,11 @@ Vario.env.gls<-Variogram(env.gls.exp,form= ~x+y,robust=T,resType = "normalized")
 plot(Vario.env.gls, smooth=F)
 
 
-####Infrastructure
+# Infrastructure model ######
 
 #check for collinearity between linear predictors
 #first create a dataframe containing only the predictors of interest
+
 preds.inf<-data_sub[,c("Dist_Air","Count_Bus","Count_Hotel","Dist_CarPark","Dist_TourOp",
                    "Dist_Train","Dist_road")]
 
@@ -373,6 +320,8 @@ Vario.inf.gls<-Variogram(inf.gls.exp,form= ~x+y,robust=T,resType = "normalized")
 plot(Vario.inf.gls, smooth=F)
 
 
+## Variable selection ######
+
 #now use dredge to find best combination of variables for both env and infr models
 
 #use pdredge to use parallell computing
@@ -380,37 +329,53 @@ library(parallel)
 library(doParallel)
 library(MuMIn)
 
-cl <- makeCluster(3)            #split into 3 cores
-registerDoParallel(cl)          #register the parallel backend
-clusterExport(cl,"gls.data")  #export the dataframe to the cluster
-clusterEvalQ(cl,library(nlme))  #load the required package onto the cluster
+cores<-detectCores()
+
+# Determine cluster type (mine is a PSOCK)
+clusterType <- if(length(find.package("snow", quiet = TRUE))) "SOCK" else "PSOCK"
+
+# Set up a cluster with number of cores specified as result of detectCores() 
+#   and call it "clust" 
+# For laptop with 4 cores
+clust <- makeCluster(getOption("cl.cores", cores), type = clusterType)
+
+
+# Load required packages onto worker nodes
+#   (in this example, load packages {MASS} and {MuMIn} to be used by pdredg)
+clusterEvalQ(clust,library(nlme))
+clusterEvalQ(clust,library(MuMIn))
+clusterExport(clust,"gls.data")  #export the dataframe to the cluster
+
 
 #model selection for infrastructure model
-inf.sel<-pdredge(inf.gls.exp,cluster=cl,rank = "AICc",trace=2, REML = FALSE,
+inf.sel<-pdredge(inf.gls.exp,cluster=clust,rank = "AICc",trace=2, REML = FALSE,
                  fixed =c("offset(Pop_dens)"))   # include offset(Pop_dens) in all models
-  
 
 saveRDS(inf.sel,"Infrastructure_sel.rds")
 
 #model selection for environmental model
-env.sel<-pdredge(env.gls,cluster=cl,rank = "AICc",trace=2, REML = FALSE,
+env.sel<-pdredge(env.gls,cluster=clust,rank = "AICc",trace=2, REML = FALSE,
                  fixed =c("offset(Pop_dens)"),# include offset(Pop_dens) in all models
-                 subset["Area_SSSI", "Area_LSAC"] == FALSE) #do not include collinear variables in the same model
+                 subset = !("Area_SSSI"&& "Area_LSAC")) #do not include collinear variables in the same model
 str(env.sel)
 
 saveRDS(env.sel,"Environment_sel.rds")
 
-stopCluster(cl)
+stopCluster(clust)
 
 inf.sel<-readRDS("Infrastructure_sel.rds")
 inf.sel
 
-inf.sel.sub<-subset(inf.sel, delta <5)
 
-inf.var.imp<-importance(inf.sel.sub)
 
 #refit subset of models with REML
-inf.sel.REML<-get.models(inf.sel, subset = delta < 5, method = "REML")
+inf.sel.REML<-get.models(inf.sel, subset = delta < 5)
+
+saveRDS(inf.sel.REML,"Infrastructure_Best.rds")
+
+inf.sel.REML<-readRDS("Infrastructure_Best.rds")
+
+inf.var.imp<-importance(inf.sel.REML)
 
 #model averaging
 inf.avg<-model.avg(inf.sel.REML, revised.var = TRUE) 
@@ -473,8 +438,8 @@ Air.ave4plot<-Air.preds %*% Weights(inf.sel.sub)
 plot(gls.data$Count_WW~newdata.Air$Dist_Air)
 lines(Air.ave4plot~newdata.Air$Dist_Air)
 
-######################################
-#####Biodiversity
+
+# Biodiversity #####
 
 data_sub<-read.table(".//data//CombinedData_v11.txt",stringsAsFactors = F,header=T)
 
@@ -493,9 +458,8 @@ par(mfrow=c(2,1))
 hist(log(data_sub$Species[which(data_sub$Records>7)]),main="Histogram of species richness",xlab="Species Richness (log)")
 plot(density(log(data_sub$Species[which(data_sub$Records>7)])),main="Density of species richness")
 
-###############################
+
 ####Effect of biodiversity 
-###############################
 
 #read classification from mixture model
 classes<-read.table("data/classification.txt")
