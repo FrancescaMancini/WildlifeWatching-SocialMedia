@@ -2,13 +2,12 @@
 # Francesca Mancini
 # last modified 05/04/2017
 
-
-# Linear models #####
-
-#load required libraries
+# Packages ######
 library(gstat)
 library(MASS)
 library(sp)
+
+# Linear models #####
 
 data_sub<-read.table(".//data//CombinedData_v11.txt",stringsAsFactors = F,header=T)
 
@@ -23,10 +22,24 @@ preds<-data_sub[,c("Area_WHS","Area_SSSI","Area_SPA","Area_SAC_L","Area_RAMSA","
 #then calculate variance inflation factor
 
 #calculate VIF
-source("Collinearity")
+source("Collinearity.R")
 VIF<-corvif(preds)
 
 #fit the full model to the logged count data with scaled predictors
+
+library(rgdal)
+
+coordinates(data_sub) <- data_sub[,c(29,30)]
+crs.geo <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84")  # geographical, datum WGS84
+
+proj4string(data_sub) <- crs.geo                             # assign the coordinate system
+
+coords_proj <- spTransform(data_sub, CRS("+proj=utm +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0 "))
+
+data_sub<-cbind(data_sub@data, coords_proj@coords)
+
+names(data_sub)[c(51,52)] <- c("x","y")
+
 
 full.lm<-lm(log10(Count_WW+1)~scale(Area_WHS,scale=T) + scale(Area_SPA,scale=T) + 
               scale(Area_SAC_L,scale=T) +scale(Area_RAMSA,scale=T) + scale(Area_NR,scale=T) +
@@ -51,7 +64,7 @@ S.res.lm<-rstandard(full.lm)
 
 #create a spatial dataframe
 mydata_sp<-data_sub
-coordinates(mydata_sp)<-c("Longitude", "Latitude")
+coordinates(mydata_sp)<-c("x", "y")
 
 #calculate and plot variograms
 Vario<-variogram(S.res.lm~1,data=mydata_sp)
@@ -61,12 +74,77 @@ plot(Vario)
 plot(Variodir)
 
 #make a bubble plot of the residuals to check for spatial patterns
-bubble.data<-data.frame(S.res.lm,data_sub$Longitude,data_sub$Latitude)
-coordinates(bubble.data)<-c("data_sub.Longitude","data_sub.Latitude")
+bubble.data<-data.frame(S.res.lm,data_sub$x,data_sub$y)
+coordinates(bubble.data)<-c("data_sub.x","data_sub.y")
 
 bubble(bubble.data,"S.res.lm",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
 
 
+# spatial eigenvector mapping
+
+coords.bin<-data_sub[,51:52]
+coords.nb<-data_sub[,51:52]
+neighbour.bin<-tri2nb(coords.bin)
+neighbour.nb<-tri2nb(coords.nb)
+
+nb.bin.list<-nb2listw(neighbour.bin)
+nb.nb.list<-nb2listw(neighbour.nb)
+
+
+f1 <- formula(log10(Count_WW+1)~scale(Area_WHS,scale=T) + scale(Area_SPA,scale=T) + 
+  scale(Area_SAC_L,scale=T) +scale(Area_RAMSA,scale=T) + scale(Area_NR,scale=T) +
+  scale(Area_NNR,scale=T) + scale(Dist_MPA,scale=T) +scale(Dist_MSAC,scale=T) +
+  scale(Dist_MCA,scale=T) + scale(Area_LNR,scale=T) + scale(Area_COUNE,scale=T) +
+  scale(Area_CNTRY,scale=T) + scale(Area_BIOSP,scale=T) +
+  scale(Area_BIOGE,scale=T) + scale(Area_NP,scale=T) + scale(Dist_Air,scale=T) + 
+  scale(Count_Bus,scale=T) + scale(Count_Hotel,scale=T) + scale(Dist_CarPark,scale=T) + 
+  scale(Dist_TourOp,scale=T) +  scale(Dist_Train,scale=T)  + scale(Dist_road,scale=T) + 
+  scale(Mean_Nat,scale=T) + offset(log10(Pop_dens+1)))
+
+full.melm<-ME(f1, data = data_sub,listw=nb.nb.list)#,nsim=100,alpha=0.05)
+
+full.melm
+
+eigen1<-fitted(full.melm)[,1]
+eigen2<-fitted(full.melm)[,2]
+coords.nb$e1.nb<-eigen1
+coords.nb$e2.nb<-eigen2
+coords.nb$e3.nb<-fitted(full.melm)[,3]
+coords.nb$e4.nb<-fitted(full.melm)[,4]
+coords.nb$e5.nb<-fitted(full.melm)[,5]
+coords.nb$e6.nb<-fitted(full.melm)[,6]
+coords.nb$e7.nb<-fitted(full.melm)[,7]
+coords.nb$e8.nb<-fitted(full.melm)[,8]
+coords.nb$e9.nb<-fitted(full.melm)[,9]
+coords.nb$e10.nb<-fitted(full.melm)[,10]
+
+
+
+coordinates(coords.nb)<-c("x", "y")
+
+bubble(coords.nb,"e1.nb")
+bubble(coords.nb,"e2.nb")
+bubble(coords.nb,"e3.nb")
+bubble(coords.nb,"e4.nb")
+bubble(coords.nb,"e5.nb")
+
+
+fittedME<- fitted(full.melm)
+
+f2 <- formula(log10(Count_WW+1)~scale(Area_WHS,scale=T) + scale(Area_SPA,scale=T) + 
+                scale(Area_SAC_L,scale=T) +scale(Area_RAMSA,scale=T) + scale(Area_NR,scale=T) +
+                scale(Area_NNR,scale=T) + scale(Dist_MPA,scale=T) +scale(Dist_MSAC,scale=T) +
+                scale(Dist_MCA,scale=T) + scale(Area_LNR,scale=T) + scale(Area_COUNE,scale=T) +
+                scale(Area_CNTRY,scale=T) + scale(Area_BIOSP,scale=T) +
+                scale(Area_BIOGE,scale=T) + scale(Area_NP,scale=T) + scale(Dist_Air,scale=T) + 
+                scale(Count_Bus,scale=T) + scale(Count_Hotel,scale=T) + scale(Dist_CarPark,scale=T) + 
+                scale(Dist_TourOp,scale=T) +  scale(Dist_Train,scale=T)  + scale(Dist_road,scale=T) + 
+                scale(Mean_Nat,scale=T) + offset(log10(Pop_dens+1)) + fittedME) 
+
+full.lm.me<-lm(f2,data=data_sub)
+
+plot(full.lm.me)
+  
 # Full GLS and selection of autocorrelation structure ######
 
 
@@ -475,9 +553,26 @@ data.gr2<-cbind(data.pos,classes)
 data.gr2<-data.gr2[data.gr2$x==2,]
 str(data.gr2)
 
+#transform coordinates from latlong to utm to avoid issues with correlation structures
+
+library(rgdal)
+
+coordinates(data.gr2) <- data.gr2[,c(29,30)]
+crs.geo <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84")  # geographical, datum WGS84
+
+proj4string(data.gr2) <- crs.geo                             # assign the coordinate system
+
+coords_proj <- spTransform(data.gr2, CRS("+proj=utm +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0 "))
+
+data.gr2<-cbind(data.gr2@data[,-52], coords_proj@coords)
+
+str(data.gr2)
+names(data.gr2)[c(52,53)] <- c("x","y")
+
+
 ##model effect of biodiversity
 
-bio.1<-lm(log10(Count_WW+1)~log10(Species),data=data.gr2)
+bio.1<-lm(log10(Count_WW+1)~log10(Species) +offset(log10(Pop_dens+1)),data=data.gr2)
 summary(bio.1)
 
 par(mfrow=c(2,2))
@@ -506,15 +601,35 @@ bubble(bubble.data,"S.res.bio.1",col=c("black","grey"),main="Residuals",xlab="Lo
 #####gls
 
 data.bio.gls<-data.frame(Count_WW=log10(data.gr2$Count_WW+1),Species=log10(data.gr2$Species),
-                         x=data.gr2$Longitude,y=data.gr2$Latitude)
+                         Pop_dens = log10(data.gr2$Pop_dens + 1), x=data.gr2$x,y=data.gr2$y)
 
 
-bio.gls.exp<-gls(Count_WW~ Species,data=data.bio.gls, correlation=corExp(form=~x+y,nugget=T))
+bio.gls.exp<-gls(Count_WW ~ Species + offset(Pop_dens), 
+                 data = data.bio.gls, correlation = corExp(form = ~ x+y,nugget = T))
+
+bio.gls.exp2<-gls(Count_WW ~ Species + Pop_dens,
+                 data = data.bio.gls, correlation = corExp(form = ~ x+y,nugget = T))
+
+
+bio.gls.lin<-gls(Count_WW ~ Species + offset(Pop_dens), 
+                 data = data.bio.gls, correlation = corLin(form = ~ x+y,nugget = T))
+
+bio.gls.ratio<-gls(Count_WW ~ Species + offset(Pop_dens), 
+                 data = data.bio.gls, correlation = corRatio(form = ~ x+y,nugget = T))
+
+bio.gls.gaus<-gls(Count_WW ~ Species + offset(Pop_dens), 
+                 data = data.bio.gls, correlation = corGaus(form = ~ x+y,nugget = T))
+
+bio.gls.sph<-gls(Count_WW ~ Species + offset(Pop_dens), 
+                  data = data.bio.gls, correlation = corSpher(form = ~ x+y,nugget = T))
+
+AIC(bio.gls.exp, bio.gls.lin, bio.gls.ratio, bio.gls.gaus, bio.gls.sph)
+
 summary(bio.gls.exp)
 
-res.bio.gls<-residuals(bio.gls.exp, type="normalized")
+res.bio.gls<-residuals(bio.gls.exp2, type="normalized")
 
-fit.bio.gls<-fitted(bio.gls.exp)
+fit.bio.gls<-fitted(bio.gls.exp2)
 
 par(mfrow=c(1,2))
 plot(res.bio.gls ~ fit.bio.gls)
@@ -532,13 +647,13 @@ plot(Vario)
 #####calculate and plot predictions
 
 pred_data<-data.frame(Species=seq(from=min(data.bio.gls$Species), 
-                                  to=max(data.bio.gls$Species),by=0.001))
+                                  to=max(data.bio.gls$Species),by=0.001),
+                      Pop_dens = rep(max(data.bio.gls$Pop_dens), n = 2604))
 
-preds<-predict(bio.gls.exp,pred_data,type="link")
-preds<-as.data.frame(preds)
+preds<-predict(bio.gls.exp2,pred_data,type="response")
 
 plot(Count_WW~Species,data=data.bio.gls)
-lines(preds$preds~pred_data$Species)
+lines(preds~pred_data$Species)
 
 #not a very good fit
 #maybe non linear relationship
