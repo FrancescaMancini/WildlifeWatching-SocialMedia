@@ -23,41 +23,87 @@ data_sub<-read.table(".//data//CombinedData_v11.txt",stringsAsFactors = F,header
 ```
 
 Check for collinearity between linear predictors. 
-First create a dataframe containing only the predictors of interest.
+First create dataframes containing only the predictors of interest. Our approach is to fit a model with higher level variables (Area_PA, Count_Inf and Mean_Nat), then separate models for infrastructure and environmental variables. So we create 3 dataframes of predictors.
 Then calculate variance inflation factor (VIF).
 
-```{r VIF}
-preds<-data_sub[,c("Area_WHS","Area_SSSI","Area_SPA","Area_SAC_L","Area_RAMSA","Area_NR","Area_NNR",
-                   "Dist_MPA","Dist_MCA","Area_LNR","Area_COUNE","Area_CNTRY","Area_BIOSP","Area_BIOGE",
-                   "Area_NP","Dist_Air","Count_Bus","Count_Hotel","Dist_CarPark","Dist_TourOp",
-                   "Dist_Train","Dist_road","Mean_Nat","Dist_MSAC")]
+```{r Agg_VIF}
+preds.agg<-data_sub[,c("Area_PA","Mean_Nat","Count_Inf")]
 
+#then calculate variance inflation factor
+
+#calculate VIF
+source("Collinearity")
+VIF<-corvif(preds.agg)
+
+```
+
+The re is no collinearity between the aggregated variables.
+
+```{r Env_VIF}
+preds_env <- data_sub[,c("Area_WHS", "Area_SSSI", "Area_SPA", "Area_SAC_L", "Area_RAMSA", "Area_NR", "Area_NNR",
+                   "Dist_MPA", "Dist_MCA", "Area_LNR", "Area_COUNE", "Area_CNTRY", "Area_BIOSP", "Area_BIOGE",
+                   "Area_NP", "Mean_Nat", "Dist_MSAC")]
+#calculate VIF
 source("Collinearity.R")
-VIF<-corvif(preds)
+VIF_env <- corvif(preds_env)
 
 ```
 
 The variables Area_SSSI and Area_SAC_L are highly collinear (correlation = 0.8 and VIF > 3). Therefore they cannot be included in the same model.
-We fit the full model with only Area_SAC_L. Later we will fit 2 different models to include the variable Area_SSSI as well.
-All predictors are scaled to avoid numerical issues due to values being vey far from 0. We also log the response variable because the distribution of Count_WW is highly skewed with a long tail. This distribution is very problematic and both a Poisson and Negative Binomial models were tested and resulted in a poor fit. 
+
+```{r Env_VIF2}
+# Area_SSSI and Area_SAC_L are highly collinear (VIF > 3)
+
+preds_env <- preds_env[,-4]
+
+VIF_env <- corvif(preds_env)
+# all VIF < 2
+
+```
+
+
+We fit the full model with only Area_SAC_L. Later we will do the model selection taking into account this collinearity issue.
+All predictors are scaled to avoid numerical issues due to values being very far from 0. We also log the response variable because the distribution of Count_WW is highly skewed with a long tail. This distribution is very problematic and both a Poisson and Negative Binomial models were tested and resulted in a poor fit. 
 
 ```{r hist}
 hist(data_sub$Count_WW,breaks=10000)
 ```
 
+First we transform the coordinates from lat and long to utm so the distance unit on the y axis is the same as on the x axis. This avoids problems with estimating the correct correlation structure.
+
+```{r coordsTransform}
+#transform coordinates from latlong to utm to avoid issues with correlation structures
+
+library(rgdal)
+
+coordinates(data_sub) <- data_sub[,c(29,30)]
+crs.geo <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84")  # geographical, datum WGS84
+
+proj4string(data_sub) <- crs.geo                             # assign the coordinate system
+
+coords_proj <- spTransform(data_sub, CRS("+proj=utm +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0 "))
+
+data_sub<-cbind(data_sub@data, coords_proj@coords)
+
+names(data_sub)[c(51,52)] <- c("x","y")
+
+```
 
 ```{r full.lm}
 full.lm<-lm(log10(Count_WW+1)~scale(Area_WHS,scale=T) + scale(Area_SPA,scale=T) + 
-              scale(Area_SAC_L,scale=T) +scale(Area_RAMSA,scale=T) + scale(Area_NR,scale=T) +
+              scale(Area_SSSI,scale=T) +scale(Area_RAMSA,scale=T) + scale(Area_NR,scale=T) +
               scale(Area_NNR,scale=T) + scale(Dist_MPA,scale=T) +scale(Dist_MSAC,scale=T) +
               scale(Dist_MCA,scale=T) + scale(Area_LNR,scale=T) + scale(Area_COUNE,scale=T) +
               scale(Area_CNTRY,scale=T) + scale(Area_BIOSP,scale=T) +
               scale(Area_BIOGE,scale=T) + scale(Area_NP,scale=T) + scale(Dist_Air,scale=T) + 
               scale(Count_Bus,scale=T) + scale(Count_Hotel,scale=T) + scale(Dist_CarPark,scale=T) + 
               scale(Dist_TourOp,scale=T) +  scale(Dist_Train,scale=T)  + scale(Dist_road,scale=T) + 
-              scale(Mean_Nat,scale=T) + offset(log10(Pop_dens+1)),data=data_sub)
+              scale(Mean_Nat,scale=T),data=data_sub)
 
+
+#look at the summary
 summary(full.lm)
+
 
 ```
 
@@ -70,17 +116,15 @@ fit.lm<-fitted(full.lm)
 par(mfrow=c(1,2))
 plot(S.res.lm~fit.lm)
 
-qqnorm(S.res.lm)
-qqline(S.res.lm)
-
 ```
 
 Normality assumption is met, but there is a pattern in the residuals vs fitted value plot: positive residuals for low fitted values and negative residuals for high fitted values.
 The data might be spatially correlated so we check the autocorrelation in the residuals with a variogram 
 
 ```{r full.lm_validation2, fig.height=6, fig.width=8}
+#create a spatial dataframe
 mydata_sp<-data_sub
-coordinates(mydata_sp)<-c("Longitude", "Latitude")
+coordinates(mydata_sp)<-c("x", "y")
 
 #calculate and plot variograms
 Vario<-variogram(S.res.lm~1,data=mydata_sp)
@@ -94,8 +138,9 @@ plot(Variodir)
 and a bubbleplot.
 
 ```{r full.lm_bubbleplot, fig.height=6, fig.width=8}
-bubble.data<-data.frame(S.res.lm,data_sub$Longitude,data_sub$Latitude)
-coordinates(bubble.data)<-c("data_sub.Longitude","data_sub.Latitude")
+#make a bubble plot of the residuals to check for spatial patterns
+bubble.data<-data.frame(S.res.lm,data_sub$x,data_sub$y)
+coordinates(bubble.data)<-c("data_sub.x","data_sub.y")
 
 bubble(bubble.data,"S.res.lm",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
 
@@ -103,7 +148,7 @@ bubble(bubble.data,"S.res.lm",col=c("black","grey"),main="Residuals",xlab="Longi
 
 Both the variogram and the bubbleplot show that the residuals are spatially correlated. The directional variograms show that isotropy is a reasonable assumption so we can use a simple correlation structure in a gls framework to account for spatial dependency in the residuals.
 
-###GLS choosing the correlation structure
+### GLS
 
 Load the required library.
 
@@ -113,10 +158,11 @@ library(nlme)
 
 First we create a new dataframe with all the transformed variables.
 
-```{r gls.data.1}
+```{r gls.data}
+#create a new dataframe with scaled predictors and logged response
 gls.data<-data.frame(Count_WW=log10(data_sub$Count_WW+1),Area_WHS=scale(data_sub$Area_WHS,scale=T),
                      Area_SPA=scale(data_sub$Area_SPA,scale=T), Dist_MSAC=scale(data_sub$Dist_MSAC,scale=T),
-                     Area_SAC_L=scale(data_sub$Area_SAC_L,scale=T), Area_RAMSA=scale(data_sub$Area_RAMSA,scale=T),
+                    Area_SSSI=scale(data_sub$Area_SSSI,scale=T), Area_RAMSA=scale(data_sub$Area_RAMSA,scale=T),
                      Area_NR=scale(data_sub$Area_NR,scale=T), Area_NNR=scale(data_sub$Area_NNR,scale=T), 
                      Dist_MPA=scale(data_sub$Dist_MPA,scale=T), Dist_MCA=scale(data_sub$Dist_MCA,scale=T), 
                      Area_LNR=scale(data_sub$Area_LNR,scale=T), Area_COUNE=scale(data_sub$Area_COUNE,scale=T),
@@ -126,180 +172,47 @@ gls.data<-data.frame(Count_WW=log10(data_sub$Count_WW+1),Area_WHS=scale(data_sub
                      Count_Hotel=log10(data_sub$Count_Hotel+1), Dist_CarPark=scale(data_sub$Dist_CarPark,scale=T), 
                      Dist_TourOp=scale(data_sub$Dist_TourOp,scale=T), Dist_Train=scale(data_sub$Dist_Train,scale=T), 
                      Dist_road=scale(data_sub$Dist_road,scale=T), Mean_Nat=scale(data_sub$Mean_Nat,scale=T),
-                     Pop_dens=log10(data_sub$Pop_dens+1),x=data_sub$Longitude,y=data_sub$Latitude)
-
+                     Area_PA = scale(data_sub$Area_PA, scale = T), Count_Inf = scale(data_sub$Count_Inf,scale = T),
+                     x=data_sub$x,y=data_sub$y, Pop_dens = data_sub$Pop_dens, 
+                     Area_SAC_L = scale(data_sub$Area_SAC_L, scale = T))
 ```
 
-Then we fit the full model with gls without any correlation structure.
 
-```{r gls.full.1, cache=TRUE}
-full.gls<-gls(Count_WW~ Area_WHS +  Area_SPA + Dist_MSAC +Area_SAC_L + Area_RAMSA+ Area_NR +
-                Area_NNR+ Dist_MPA + Dist_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
-                Area_BIOGE + Area_NP + Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                Dist_Train  + Dist_road + Mean_Nat + offset(Pop_dens),data=gls.data)
+### High-level model
 
-```
-
-Now we fit the same model with different autocorrelation structures.
-
-```{r gls.full.2, cache=TRUE}
-full.gls.sph<-gls(Count_WW~ Area_WHS +  Area_SPA + Dist_MSAC +Area_SAC_L + Area_RAMSA+ Area_NR +
-                    Area_NNR+ Dist_MPA + Dist_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
-                    Area_BIOGE + Area_NP + Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                    Dist_Train  + Dist_road + Mean_Nat + offset(Pop_dens),data=gls.data,
-                  correlation=corSpher(form=~x+y,nugget=T))
-
-full.gls.Lin<-gls(Count_WW~ Area_WHS +  Area_SPA + Dist_MSAC +Area_SAC_L + Area_RAMSA+ Area_NR +
-                    Area_NNR+ Dist_MPA + Dist_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
-                    Area_BIOGE + Area_NP + Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                    Dist_Train  + Dist_road + Mean_Nat + offset(Pop_dens),data=gls.data,
-                  correlation=corLin(form=~x+y,nugget=T))
-
-full.gls.ratio<-gls(Count_WW~ Area_WHS +  Area_SPA + Dist_MSAC +Area_SAC_L + Area_RAMSA+ Area_NR +
-                      Area_NNR+ Dist_MPA + Dist_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
-                      Area_BIOGE + Area_NP + Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                      Dist_Train  + Dist_road + Mean_Nat + offset(Pop_dens),data=gls.data,
-                    correlation=corRatio(form=~x+y,nugget=T))
-
-full.gls.Gaus<-gls(Count_WW~ Area_WHS +  Area_SPA + Dist_MSAC +Area_SAC_L + Area_RAMSA+ Area_NR +
-                     Area_NNR+ Dist_MPA + Dist_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
-                     Area_BIOGE + Area_NP + Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                     Dist_Train  + Dist_road + Mean_Nat + offset(Pop_dens),data=gls.data,
-                   correlation=corGaus(form=~x+y,nugget=T))
-
-full.gls.exp<-gls(Count_WW~ Area_WHS +  Area_SPA + Dist_MSAC +Area_SAC_L + Area_RAMSA+ Area_NR +
-                    Area_NNR+ Dist_MPA + Dist_MCA + Area_LNR + Area_COUNE + Area_CNTRY + Area_BIOSP +
-                    Area_BIOGE + Area_NP + Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-                    Dist_Train  + Dist_road + Mean_Nat + offset(Pop_dens),data=gls.data,
-                  correlation=corExp(form=~x+y,nugget=T))
-
-```
-
-Now we use AIC to choose the most appropriate correlation structure.
-
-```{r corr_str}
-AIC(full.gls,full.gls.sph,full.gls.Lin,full.gls.ratio,full.gls.Gaus,full.gls.exp)
-```
-
-The exponantial correlation structure seems to be the most appropriate for the data, therefore we refit the full model using this structure.
-We use the method="ML" argument because we want to be able to compare the different models with AIC at the end.
-
-First we create two new dataframes with the transformed variables and some aggregated variables that we will use during model selection.
-The first dataframe contains the variable Area_SAC_L while the second contains Area_SSSI.
-
-```{r gls.data.2}
-gls.data.2<-data.frame(Count_WW=log10(data_sub$Count_WW+1),Area_WHS=scale(data_sub$Area_WHS,scale=T),
-                       Dist_MSAC=scale(data_sub$Dist_MSAC,scale=T), Area_SPA=scale(data_sub$Area_SPA,scale=T),
-                       Area_LSAC=scale(data_sub$Area_SAC_L,scale=T), Area_RAMSA=scale(data_sub$Area_RAMSA,scale=T),
-                       Area_NR=scale(data_sub$Area_NR,scale=T), Area_NNR=scale(data_sub$Area_NNR,scale=T),
-                       Dist_MPA=scale(data_sub$Dist_MPA,scale=T), Dist_MCA=scale(data_sub$Dist_MCA,scale=T),
-                       Area_LNR=scale(data_sub$Area_LNR,scale=T), Area_COUNE=scale(data_sub$Area_COUNE,scale=T),
-                       Area_CNTRY=scale(data_sub$Area_CNTRY,scale=T), Area_BIOSP=scale(data_sub$Area_BIOSP,scale=T),
-                       Area_BIOGE=scale(data_sub$Area_BIOGE,scale=T), Area_NP=scale(data_sub$Area_NP,scale=T),
-                       Dist_Air=scale(data_sub$Dist_Air,scale=T), Count_Bus=scale(data_sub$Count_Bus,scale=T),
-                       Count_Hotel=log10(data_sub$Count_Hotel+1), Dist_CarPark=scale(data_sub$Dist_CarPark,scale=T),
-                       Dist_TourOp=scale(data_sub$Dist_TourOp,scale=T), Dist_Train=scale(data_sub$Dist_Train,scale=T),
-                       Dist_road=scale(data_sub$Dist_road,scale=T), Mean_Nat=scale(data_sub$Mean_Nat,scale=T),
-                       Area_PA=scale(data_sub$Area_PA,scale=T),Count_Inf=log10(data_sub$Count_Inf+1),
-                       Dist_MSAC=scale(data_sub$Dist_MSAC,scale=T),
-                       Pop_dens=log10(data_sub$Pop_dens+1),x=data_sub$Longitude,y=data_sub$Latitude)
-
-gls.data.3<-data.frame(Count_WW=log10(data_sub$Count_WW+1),Area_WHS=scale(data_sub$Area_WHS,scale=T),
-                       Area_SSSI=scale(data_sub$Area_SSSI,scale=T), Area_SPA=scale(data_sub$Area_SPA,scale=T),
-                       Dist_MSAC=scale(data_sub$Dist_MSAC,scale=T), Area_RAMSA=scale(data_sub$Area_RAMSA,scale=T),
-                       Area_NR=scale(data_sub$Area_NR,scale=T), Area_NNR=scale(data_sub$Area_NNR,scale=T),
-                       Dist_MPA=scale(data_sub$Dist_MPA,scale=T), Dist_MCA=scale(data_sub$Dist_MCA,scale=T),
-                       Area_LNR=scale(data_sub$Area_LNR,scale=T), Area_COUNE=scale(data_sub$Area_COUNE,scale=T),
-                       Area_CNTRY=scale(data_sub$Area_CNTRY,scale=T), Area_BIOSP=scale(data_sub$Area_BIOSP,scale=T),
-                       Area_BIOGE=scale(data_sub$Area_BIOGE,scale=T), Area_NP=scale(data_sub$Area_NP,scale=T),
-                       Dist_Air=scale(data_sub$Dist_Air,scale=T), Count_Bus=scale(data_sub$Count_Bus,scale=T),
-                       Count_Hotel=log10(data_sub$Count_Hotel+1), Dist_CarPark=scale(data_sub$Dist_CarPark,scale=T),
-                       Dist_TourOp=scale(data_sub$Dist_TourOp,scale=T), Dist_Train=scale(data_sub$Dist_Train,scale=T),
-                       Dist_road=scale(data_sub$Dist_road,scale=T), Mean_Nat=scale(data_sub$Mean_Nat,scale=T),
-                       Area_PA=scale(data_sub$Area_PA,scale=T),Count_Inf=log10(data_sub$Count_Inf+1),
-                       Dist_MSAC=scale(data_sub$Dist_MSAC,scale=T),
-                       Pop_dens=log10(data_sub$Pop_dens+1),x=data_sub$Longitude,y=data_sub$Latitude)
-
-
-
-```
-
-Now we fit the models with the two collinear variables and compared them with AIC.
-
-```{r gls.full.3, cache=TRUE}
-full.gls.exp.2<-gls(Count_WW~ Area_WHS + Area_LSAC +  Dist_MSAC +Dist_MPA +Dist_MCA +
-                    Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
-                    Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Dist_Air + Count_Bus + 
-                    Count_Hotel + Dist_CarPark + Dist_TourOp + Dist_Train  + Dist_road + 
-                    Mean_Nat + offset(Pop_dens),data=gls.data.2,
-                    correlation=corExp(form=~x+y,nugget=T),method="ML")
-
-full.gls.exp.3<-gls(Count_WW~ Area_WHS + Area_SSSI +  Dist_MSAC +Dist_MPA +Dist_MCA +
-                    Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
-                    Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Dist_Air + Count_Bus + 
-                    Count_Hotel + Dist_CarPark + Dist_TourOp + Dist_Train  + Dist_road + 
-                    Mean_Nat + offset(Pop_dens),data=gls.data.3,
-                  correlation=corExp(form=~x+y,nugget=T),method="ML")
-
-AIC(full.gls.exp.2,full.gls.exp.3)
-
-```
-
-The models are very similar but the model full.gls.exp.2 has an AIC slightly lower, for now we will use this model, but later in the model selection phase we will consider both.
-
-We check model validity first.
-
-```{r full.gls.valid.1}
-res.gls<-residuals(full.gls.exp.2,type="normalized")
-fit.gls<-fitted(full.gls.exp.2)
-
-par(mfrow=c(1,2))
-plot(res.gls~fit.gls)
-
-qqnorm(res.gls)
-qqline(res.gls)
-
-```
-
-We check that autocorrelation is not an issue anymore.
-
-```{r full.gls.vario}
-Vario.gls.exp<-Variogram(full.gls.exp.2,form= ~x+y,robust=T,resType = "normalized")
-
-plot(Vario.gls.exp, smooth=F)
-
-```
-
-The residuals are no longer correlated and there are no visible patterns when compared to the fitted values.
-
-Now we can look at the effects of the linear predictors.
-
-```{r full.gls.exp.2.summary}
-summary(full.gls.exp.2)
-```
-
-Some of the protected areas (WHS,marine SAC, SPA, NNR and LNR) are an attractor for the tourists, others (RAMSAR) have a negative effect on tourists numbers while others do not have an effect.
-Among the different infrastructures, only the distance from the airport, and the number of hotels and bus stations seems to have an effect on the number of tourists, while the perceived naturalness of an area is a deterrent.
-
-###Model selection
-
-Now we can start selecting important variables for the model. 
 First we can fit a model with aggregated variables: the total area of the cell that is occupied by a reserve, the total number of infrastructures and the mean naturalness.
 This will test whether environmental, socio-economic infrastrcture or the naturalness is the strogest attractor for tourists.
+We first find the best correlation structure.
 
 ```{r agg.gls, cache=TRUE}
-agg.gls<-gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf + offset(Pop_dens),data=gls.data.2,
-             correlation=corExp(form=~x+y,nugget=T),method="ML")
+agg.gls.ratio<-gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf,data=gls.data,
+             correlation=corRatio(form=~x+y,nugget=T))
+
+agg.gls.sph<-gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf,data=gls.data,
+                   correlation=corSpher(form=~x+y,nugget=T))
+
+agg.gls.Lin<-gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf,data=gls.data,
+                 correlation=corLin(form=~x+y,nugget=T))
+
+agg.gls.Gaus<-gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf,data=gls.data,
+                 correlation=corGaus(form=~x+y,nugget=T))
+
+agg.gls.exp<-gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf,data=gls.data,
+                  correlation=corExp(form=~x+y,nugget=T))
+
+
+AIC(agg.gls.ratio, agg.gls.sph, agg.gls.Lin, agg.gls.Gaus, agg.gls.exp)
 
 ```
 
-Check the validity of the model.
+Check the validity of the model. First we look for patterns in the residuals.
 
 ```{r agg.gls.valid}
-res.agg.gls<-residuals(agg.gls,type="normalized")
-fit.agg.gls<-fitted(agg.gls)
+#check for patterns in the residuals
 
-par(mfrow=c(1,2))
+res.agg.gls<-residuals(agg.gls.exp,type="normalized")
+fit.agg.gls<-fitted(agg.gls.exp)
+
 plot(res.agg.gls~fit.agg.gls)
 
 qqnorm(res.agg.gls)
@@ -307,32 +220,71 @@ qqline(res.agg.gls)
 
 ```
 
+Then we check that autocorrelation is not an issue anymore.
+
+```{r agg.gls.valid2}
+#check that autocorrelation is not an issue anymore
+Vario.agg.gls<-Variogram(agg.gls.exp,form= ~x+y,robust=T,resType = "normalized")
+
+plot(Vario.agg.gls, smooth=F)
+
+```
+
 Then look at the summary.
 
 ```{r agg.gls.summary}
-summary(agg.gls)
+summary(agg.gls.exp)
 ```
 
 All the variables seem to be imprtant in explaining the distribution of the wildlife watchers.
 We can now fit an environmental model and an infrastructure model to select which variables are important in the two groups.
 
-#####Environmental model
+##### Environmental model
+
+Again we first select the best correlation structure.
 
 ```{r env.gls, cache=TRUE}
-env.gls<-gls(Count_WW~ Area_WHS + Area_LSAC +  Dist_MSAC +Dist_MPA +Dist_MCA +
+env.gls <- gls(Count_WW~ Area_WHS + Area_SAC_L + Area_SSSI + Dist_MSAC +Dist_MPA +Dist_MCA +
+                 Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
+                 Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Mean_Nat,data=gls.data)
+
+env.gls.exp<-gls(Count_WW~ Area_WHS + Area_SAC_L + Area_SSSI + Dist_MSAC +Dist_MPA +Dist_MCA +
                Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
-               Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Mean_Nat + 
-               offset(Pop_dens),data=gls.data.2, correlation=corExp(form=~x+y,nugget=T),method="ML")
+               Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Mean_Nat,
+               data=gls.data, correlation=corExp(form=~x+y,nugget=T))
+
+env.gls.ratio<-gls(Count_WW~ Area_WHS + Area_SAC_L + Area_SSSI + Dist_MSAC +Dist_MPA +Dist_MCA +
+               Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
+               Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Mean_Nat,
+               data=gls.data, correlation=corRatio(form=~x+y,nugget=T))
+
+env.gls.sph<-gls(Count_WW~ Area_WHS + Area_SAC_L + Area_SSSI + Dist_MSAC +Dist_MPA +Dist_MCA +
+                 Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
+                 Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Mean_Nat,
+                 data=gls.data, correlation=corSpher(form=~x+y,nugget=T))
+
+env.gls.Lin<-gls(Count_WW~ Area_WHS + Area_SAC_L + Area_SSSI + Dist_MSAC +Dist_MPA +Dist_MCA +
+                 Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
+                 Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Mean_Nat,
+                 data=gls.data,correlation=corLin(form=~x+y,nugget=T))
+
+env.gls.Gaus<-gls(Count_WW~ Area_WHS + Area_SAC_L + Area_SSSI + Dist_MSAC +Dist_MPA +Dist_MCA +
+                  Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
+                  Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Mean_Nat,
+                  data=gls.data,correlation=corGaus(form=~x+y,nugget=T))
+
+AIC(env.gls,env.gls.exp, env.gls.ratio, env.gls.sph, env.gls.Lin, env.gls.Gaus)
 
 ```
 
 Check model assumptions.
 
 ```{r env.gls.valid}
-res.env.gls<-residuals(env.gls,type="normalized")
-fit.env.gls<-fitted(env.gls)
+#check for patterns in the residuals
 
-par(mfrow=c(1,2))
+res.env.gls<-residuals(env.gls.exp,type="normalized")
+fit.env.gls<-fitted(env.gls.exp)
+
 plot(res.env.gls~fit.env.gls)
 
 qqnorm(res.env.gls)
@@ -340,30 +292,60 @@ qqline(res.env.gls)
 
 ```
 
+Check for autocorrelation.
+
+```{r env.gls.valid2}
+#check that autocorrelation is not an issue anymore
+Vario.env.gls<-Variogram(env.gls.exp,form= ~x+y,robust=T,resType = "normalized")
+
+plot(Vario.env.gls, smooth=F)
+
+summary(env.gls.exp)
+
+```
+
 And summary.
 
 ```{r env.gls.summary}
-summary(env.gls)
+summary(env.gls.exp)
 ```
 
-Results are similar to the full odel with the ecceptuion of RAMSAR not being significant any longer, CNTRY and NP now having a positive effect on number of tourists.
 
-#####Infrastructure model
+##### Infrastructure model
+
+Selecting the best correlation structure.
 
 ```{r inf.gls, cache=TRUE}
-inf.gls<-gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
-               Dist_Train  + Dist_road +offset(Pop_dens),data=gls.data.2,
-             correlation=corExp(form=~x+y,nugget=T),method="ML")
+inf.gls <- gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
+                 Dist_Train  + Dist_road,data=gls.data)
+
+inf.gls.exp<-gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
+                 Dist_Train  + Dist_road,data=gls.data, correlation=corExp(form=~x+y,nugget=T))
+
+inf.gls.sph<-gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
+                 Dist_Train  + Dist_road,data=gls.data, correlation=corSpher(form=~x+y,nugget=T))
+
+inf.gls.ratio<-gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
+                   Dist_Train  + Dist_road,data=gls.data, correlation=corRatio(form=~x+y,nugget=T))
+
+inf.gls.Lin<-gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
+                 Dist_Train  + Dist_road,data=gls.data, correlation=corLin(form=~x+y,nugget=T))
+
+inf.gls.Gaus<-gls(Count_WW ~ Dist_Air + Count_Bus + Count_Hotel + Dist_CarPark + Dist_TourOp +
+                  Dist_Train  + Dist_road,data=gls.data, correlation=corGaus(form=~x+y,nugget=T))
+
+AIC(inf.gls,inf.gls.exp, inf.gls.sph, inf.gls.ratio, inf.gls.Lin, inf.gls.Gaus)
 
 ```
 
 Model validation.
 
 ```{r inf.gls.valid}
-res.inf.gls<-residuals(inf.gls,type="normalized")
-fit.inf.gls<-fitted(inf.gls)
+#check for patterns in the residuals
 
-par(mfrow=c(1,2))
+res.inf.gls<-residuals(inf.gls.exp,type="normalized")
+fit.inf.gls<-fitted(inf.gls.exp)
+
 plot(res.inf.gls~fit.inf.gls)
 
 qqnorm(res.inf.gls)
@@ -371,48 +353,57 @@ qqline(res.inf.gls)
 
 ```
 
+Check for residual autocorrelation.
+
+```{r inf.gls.valid2}
+#check that autocorrelation is not an issue anymore
+Vario.inf.gls<-Variogram(inf.gls.exp,form= ~x+y,robust=T,resType = "normalized")
+
+plot(Vario.inf.gls, smooth=F)
+
+```
+
 And summary.
 
 ```{r inf.gls.summary}
-summary(inf.gls)
+summary(inf.gls.exp)
 ```
-
-The effects are the same as in the full model.
-
-If we check with AIC which of these models explains the data best 
-
-```{r gls.selection}
-AIC(full.gls.exp.2, agg.gls, env.gls, inf.gls)
-```
-
-we can see that the full model is the best one, followed by the infrastructure model and the aggregated model.
 
 ###Model selection using dredge
 
 We use the pdredge function in package MuMIn to select iportant variables in the models.
 
-#####Infrastructures model
+##### Infrastructures model
 
 The function pdredge allows parallel computing.
-The following code sets up a cluster and runs the dredge function on 3 nodes.
+The following code sets up a cluster and runs the dredge function on 4 cores.
 
-```{r pdredge, eval=FALSE}
+```{r pdredgeInf, eval=FALSE}
+#use pdredge to use parallell computing
 library(parallel)
-library(doParallel)
 library(MuMIn)
 
-cl <- makeCluster(3)            #split into 3 cores
-registerDoParallel(cl)          #register the parallel backend
-clusterExport(cl,"gls.data.2")  #export the dataframe to the cluster
-clusterEvalQ(cl,library(nlme))  #load the required package onto the cluster
+# Calculate the number of cores
+cores <- detectCores()
 
-inf.sel<-pdredge(inf.gls,cluster=cl,rank = "AIC",trace=2)    #model selection for infrastructure model
+# Set up a cluster with number of cores specified as result of detectCores() 
+#   and call it "clust" 
+clust <- makeCluster(cores)
+
+
+# Load required packages onto worker nodes
+#   (in this example, load packages {nlme} and {MuMIn} to be used by pdredg)
+clusterEvalQ(clust,library(nlme))
+clusterEvalQ(clust,library(MuMIn))
+clusterExport(clust,"gls.data")  #export the dataframe to the cluster
+clusterExport(clust,"inf.gls.exp")  #export the model to the cluster
+
+#model selection for infrastructure model
+inf.sel<-pdredge(inf.gls.exp, cluster=clust,rank = "AICc",trace=2, REML = FALSE)
 
 saveRDS(inf.sel,"Infrastructure_sel.rds")
 
-#pdredge(env.gls,cluster=cl,rank = "AIC",trace=2)    #model selection for environmental model
-
-stopCluster(cl)
+stopCluster(clust)
 
 ```
 
@@ -420,28 +411,100 @@ stopCluster(cl)
 inf.sel<-readRDS("Infrastructure_sel.rds")
 ```
 
-Take a subset of the models that are within 5 delta AIC from the best model and inspect the importance of each variable in this subset.
+Take a subset of the models that are within 5 delta AIC from the best model and refit them using REML.
 
-```{r VarImp}
-library(MuMIn)
-inf.sel.sub<-subset(inf.sel, delta <5)
+```{r InfREML, eval = FALSE}
+#refit subset of models with REML
+inf.sel.REML<-get.models(inf.sel, subset = delta < 5)
 
-inf.var.imp<-importance(inf.sel.sub)
+```
+
+```{r readBestInfMod, include=FALSE}
+inf.sel.REML<-readRDS("Infrastructure_Best.rds")
+```
+
+Now we cal look at the importance of different variables based on the weights from the model selection.
+
+```{r Inf_VarImp, message=FALSE, warning=FALSE}
+inf.var.imp<-importance(inf.sel.REML)
+
+# put it into a dataframe format
+
+df <- as.data.frame(inf.var.imp)
+
+inf.var.imp <- cbind(df, attr(inf.var.imp, "names"))
+
+names(inf.var.imp) <- c("Importance", "Var")
+
+# and plot
+
+library(ggplot2)
+
+InfVarImpVis <- ggplot (inf.var.imp, aes(Var, Importance, fill = Importance)) +
+  geom_hline(yintercept = seq(0, 1.2, by = 0.5), colour = "grey90", size = 1) +
+  geom_vline(aes(xintercept = Var), colour = "grey90", size = 1) +
+  geom_bar(width = 1, stat = "identity", color = "white") +
+  scale_y_continuous(breaks = 0:nlevels(as.factor(inf.var.imp$Var))) +
+  scale_fill_gradient(low = "thistle1", high = "thistle4") +
+  theme_bw() +
+  theme(axis.title = element_blank(),
+        panel.border = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.y = element_blank(),
+        panel.grid = element_blank(),
+        axis.text.x = element_text(size = 12),
+        legend.title = element_text(size = 15),
+        legend.text = element_text(size = 12))
+
+InfVarImpVis +coord_polar()
 
 ```
 
 Now we can use model averaging to get coefficient estimates averaged across the subset of models and calculate confidence intervals.
 
 ```{r ModAvg}
-inf.avg<-model.avg(inf.sel, subset= delta < 5, revised.var = TRUE) 
+#model averaging
+inf.avg<-model.avg(inf.sel.REML, revised.var = TRUE) 
+summary(inf.avg) 
 
 inf.confint<-confint(inf.avg)
 
-summary(inf.avg) 
-
 ```
 
-Only the number of bus stations, hotels and the distance for an airport have a significant effect on the number of tourists that visit an area.
+##### Environmental model
+
+The following code was used to set up a cluster and run the model selection on the environmental variables on the UoA HPC Maxwell.
+
+```{r pdredgeEnv, eval = FALSE}
+library(nlme)
+library(MuMIn)
+library(snow)
+library(snowfall)
+library(Rmpi)
+
+gls.data<-read.table("gls.data.txt",stringsAsFactors = F,header=T)
+
+env.gls.exp<-gls(Count_WW~ Area_WHS + Area_SAC_L + Area_SSSI + Dist_MSAC +Dist_MPA +Dist_MCA +
+               Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
+               Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Mean_Nat,
+               data=gls.data, correlation=corExp(form=~x+y,nugget=T))
+            
+clust <- makeCluster(mpi.universe.size())
+
+# Load required packages onto worker nodes
+#   (in this example, load packages {nlme} and {MuMIn} to be used by pdredge)
+clusterEvalQ(clust,library(nlme))
+clusterEvalQ(clust,library(MuMIn))
+clusterExport(clust,"gls.data")  #export the dataframe to the cluster
+clusterExport(clust,"env.gls.exp")  #export the model to the cluster
+
+env.sel<-pdredge(env.gls.exp, cluster=clust, rank = "AICc",trace=2, REML = FALSE,
+                 subset = !("Area_SSSI"&& "Area_SAC_L")) #do not include collinear variables in the same model
+
+saveRDS(env.sel,"Environment_sel.rds")
+
+stopCluster(clust)
+```
 
 ### Biodiversity 
 
