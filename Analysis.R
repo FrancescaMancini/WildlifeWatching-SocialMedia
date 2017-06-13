@@ -359,7 +359,40 @@ saveRDS(inf.sel.REML,"Infrastructure_Best.rds")
 
 inf.sel.REML<-readRDS("Infrastructure_Best.rds")
 
+# calculate variable importance 
+
 inf.var.imp<-importance(inf.sel.REML)
+
+# put it into a dataframe format
+
+df <- as.data.frame(inf.var.imp)
+
+inf.var.imp <- cbind(df, attr(inf.var.imp, "names"))
+
+names(inf.var.imp) <- c("Importance", "Var")
+
+# and plot
+
+library(ggplot2)
+
+InfVarImpVis <- ggplot (inf.var.imp, aes(Var, Importance, fill = Importance)) +
+  geom_hline(yintercept = seq(0, 1.2, by = 0.5), colour = "grey90", size = 1) +
+  geom_vline(aes(xintercept = Var), colour = "grey90", size = 1) +
+  geom_bar(width = 1, stat = "identity", color = "white") +
+  scale_y_continuous(breaks = 0:nlevels(as.factor(inf.var.imp$Var))) +
+  scale_fill_gradient(low = "thistle1", high = "thistle4") +
+  theme_bw() +
+  theme(axis.title = element_blank(),
+        panel.border = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.y = element_blank(),
+        panel.grid = element_blank(),
+        axis.text.x = element_text(size = 12),
+        legend.title = element_text(size = 15),
+        legend.text = element_text(size = 12))
+
+InfVarImpVis +coord_polar()
+
 
 #model averaging
 inf.avg<-model.avg(inf.sel.REML, revised.var = TRUE) 
