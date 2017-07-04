@@ -6,6 +6,12 @@
 library(gstat)
 library(MASS)
 library(sp)
+library(rgdal)
+library(nlme)
+library(MuMIn)
+library(ggplot2)
+library(effects)
+library(visreg)
 
 # Linear models #####
 
@@ -27,9 +33,9 @@ panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...)
   usr <- par("usr"); on.exit(par(usr))
   par(usr = c(0, 1, 0, 1))
   r <- abs(cor(x, y))
-  txt <- format(c(r, 0.123456789), digits = digits)[1]
+  txt <- format(c(r, 0.123456759), digits = digits)[1]
   txt <- paste0(prefix, txt)
-  if(missing(cex.cor)) cex.cor <- 0.8/strwidth(txt)
+  if(missing(cex.cor)) cex.cor <- 0.5/strwidth(txt)
   text(0.5, 0.5, txt, cex = cex.cor * r)
 }
 
@@ -136,7 +142,6 @@ gls.data<-data.frame(Count_WW=log10(data_sub$Count_WW+1),Area_WHS=scale(data_sub
                      Area_SAC_L = scale(data_sub$Area_SAC_L, scale = T))
 
 
-
 # Aggregated variables #######
 
 preds.agg<-data_sub[,c("Area_PA","Mean_Nat","Count_Inf")]
@@ -185,6 +190,86 @@ Vario.agg.gls<-Variogram(agg.gls.exp,form= ~x+y,robust=T,resType = "normalized")
 
 plot(Vario.agg.gls, smooth=F)
 
+# visualise effects ####
+
+library(effects)
+
+agg.ef.PA <- Effect("Area_PA", agg.gls.exp)#, transformation = list(link = log10, inverse = function(x){10^x}))
+agg.ef.MN <- Effect("Mean_Nat", agg.gls.exp)#, transformation = list(link = log10, inverse = function(x){10^x}))
+agg.ef.Inf <- Effect("Count_Inf", agg.gls.exp)#, transformation = list(link = log10, inverse = function(x){10^x}))
+
+
+plot(agg.ef.PA, colors = c("mediumpurple4", "mediumpurple1"), lwd = 2,
+     main = "", style="stacked",rug=F, key.args=list(space="right"),
+     row = 1,col = 1,nrow = 1,ncol = 3,more = TRUE)
+plot(agg.ef.MN, colors = c("mediumpurple4", "mediumpurple1"), lwd = 2,
+     main = "", style="stacked",rug=F, key.args=list(space="right"),
+     row = 1,col = 2,nrow = 1,ncol = 3, ylab = "", more = TRUE)
+plot(agg.ef.Inf, colors = c("mediumpurple4", "mediumpurple1"), lwd = 2,
+     main = "", style="stacked",rug=F, key.args=list(space="right"),
+     row = 1,col = 3,nrow = 1,ncol = 3, ylab = "")
+
+# Area_PA
+
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+
+newdata$Area_PA <- nseq(gls.data$Area_PA, nrow(newdata))
+
+preds_PA <- predict(agg.gls.exp, se.fit=TRUE, newdata)
+
+pred_PA <- ggplot(newdata, aes(x=Area_PA, y=preds_PA$fit)) +
+  geom_ribbon(aes(ymin = preds_PA$fit-1.96*preds_PA$se.fit, 
+                  ymax =  preds_PA$fit+1.96*preds_PA$se.fit), alpha = 0.4, fill = "#E2E888") +
+  geom_line(size = 2, col = "#E2E888") +
+  labs(x = "Area_PA", y = "Count_WW") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+#print(pred_PA)
+
+# full=T defines the use of  full model-averaged coefficients see [here][1]
+
+# Mean_Nat
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+
+newdata$Mean_Nat <- nseq(gls.data$Mean_Nat, nrow(newdata))
+
+preds_nat <- predict(agg.gls.exp, se.fit=TRUE, full=T, newdata)
+
+pred_nat <- ggplot(newdata, aes(x=Mean_Nat, y=preds_nat$fit)) +
+  geom_ribbon(aes(ymin = preds_nat$fit-1.96*preds_nat$se.fit, 
+                  ymax =  preds_nat$fit+1.96*preds_nat$se.fit), alpha = .4, fill = "#E2E888") +
+  geom_line(size = 2, col = "#E2E888") +
+  labs(x = "Mean_Nat", y = "Count_WW")+
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+#print(pred_nat)
+
+# full=T defines the use of  full model-averaged coefficients see [here][1]
+
+# Count_Inf
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+
+newdata$Count_Inf <- nseq(gls.data$Count_Inf, nrow(newdata))
+
+preds_inf <- predict(agg.gls.exp, se.fit=TRUE, full=T, newdata)
+
+pred_inf <- ggplot(newdata, aes(x=Count_Inf, y=preds_inf$fit)) +
+  geom_ribbon(aes(ymin = preds_inf$fit-1.96*preds_inf$se.fit, 
+                  ymax =  preds_inf$fit+1.96*preds_inf$se.fit), alpha = .4, fill = "#E2E888") +
+  geom_line(size = 2, col = "#E2E888") +
+  labs(x = "Count_Inf", y = "Count_WW") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+#print(pred_inf)
+
+# full=T defines the use of  full model-averaged coefficients see [here][1]
+source("Multiplot.R")
+png("Agg_Effects.png", bg = "transparent", width = 17, height = 15, units = "cm", res = 600)
+multiplot(pred_PA, pred_nat, pred_inf, cols = 3)
+dev.off()
 
 # fit an environmental and an infrastructure model
 # to select important variables
@@ -328,24 +413,44 @@ saveRDS(inf.sel,"Infrastructure_sel.rds")
 
 stopCluster(clust)
 
-#model selection for environmental model
-clust <- makeCluster(cores)#, type = clusterType)
+# model selection for environmental model
+# this code was used to initiate a cluster and run the model selection in parallel
+# on the University of Aberdeen HPC Maxwell.
+# Do not run
+
+# library(nlme)
+# library(MuMIn)
+# library(snow)
+# library(snowfall)
+# library(Rmpi)
+# 
+# gls.data<-read.table("gls.data.txt",stringsAsFactors = F,header=T)
+# 
+# env.gls.exp<-gls(Count_WW~ Area_WHS + Area_SAC_L + Area_SSSI + Dist_MSAC +Dist_MPA +Dist_MCA +
+#                    Area_SPA +Area_RAMSA+ Area_NR + Area_NNR+   Area_LNR + Area_COUNE + 
+#                    Area_CNTRY + Area_BIOSP + Area_BIOGE + Area_NP + Mean_Nat,
+#                  data=gls.data, correlation=corExp(form=~x+y,nugget=T))
+# 
+# clust <- makeCluster(mpi.universe.size())
+# 
+# # Load required packages onto worker nodes
+# #   (in this example, load packages {nlme} and {MuMIn} to be used by pdredge)
+# clusterEvalQ(clust,library(nlme))
+# clusterEvalQ(clust,library(MuMIn))
+# clusterExport(clust,"gls.data")  #export the dataframe to the cluster
+# clusterExport(clust,"env.gls.exp")  #export the model to the cluster
+# 
+# env.sel<-pdredge(env.gls.exp, cluster=clust, rank = "AICc",trace=2, REML = FALSE,
+#                  subset = !("Area_SSSI"&& "Area_SAC_L")) #do not include collinear variables in the same model
+# 
+# saveRDS(env.sel,"Environment_sel.rds")
+# 
+# stopCluster(clust)
 
 
-# Load required packages onto worker nodes
-#   (in this example, load packages {MASS} and {MuMIn} to be used by pdredg)
-clusterEvalQ(clust,library(nlme))
-clusterEvalQ(clust,library(MuMIn))
-clusterExport(clust,"gls.data")  #export the dataframe to the cluster
-clusterExport(clust,"env.gls.exp")  #export the model to the cluster
+# Variable importance and model averaging #####
 
-env.sel<-pdredge(env.gls.exp, cluster=clust, rank = "AICc",trace=2, REML = FALSE,
-                 subset = !("Area_SSSI"&& "Area_SAC_L")) #do not include collinear variables in the same model
-str(env.sel)
-
-saveRDS(env.sel,"Environment_sel.rds")
-
-stopCluster(clust)
+# Infrastructures
 
 inf.sel<-readRDS("Infrastructure_sel.rds")
 inf.sel
@@ -400,65 +505,372 @@ summary(inf.avg)
 
 inf.confint<-confint(inf.avg)
 
-#inf.pred.parms<-get.models(inf.sel.sub,subset=T)
-
-newdata.Bus<-data.frame(Count_WW= gls.data$Count_WW,
-                        Count_Bus=seq(min(gls.data$Count_Bus),max(gls.data$Count_Bus),
-                        length.out=length(gls.data$Count_Bus)), Count_Hotel=rep(mean(gls.data$Count_Hotel),
-                        length(gls.data$Count_Bus)),Dist_Air=rep(mean(gls.data$Dist_Air),
-                        length(gls.data$Dist_Air)),Dist_Train=rep(mean(gls.data$Dist_Train),
-                        length(gls.data$Dist_Train)),Pop_dens=rep(mean(gls.data$Pop_dens),
-                        length(gls.data$Pop_dens)),Dist_TourOp=rep(mean(gls.data$Dist_TourOp),
-                        length(gls.data$Dist_TourOp)),Dist_CarPark=rep(mean(gls.data$Dist_CarPark),
-                        length(gls.data$Dist_CarPark)),Dist_road=rep(mean(gls.data$Dist_road),
-                        length(gls.data$Dist_road)))
-
-newdata.Hotel<-data.frame(Count_WW= gls.data$Count_WW,
-                          Count_Bus=rep(mean(gls.data$Count_Bus),length(gls.data$Count_Bus)),
-                          Count_Hotel=seq(from=min(gls.data$Count_Hotel),to=max(gls.data$Count_Hotel),
-                          length.out=length(gls.data$Count_Hotel)),Dist_Air=rep(mean(gls.data$Dist_Air),
-                        length(gls.data$Dist_Air)),Dist_Train=rep(mean(gls.data$Dist_Train),
-                        length(gls.data$Dist_Train)),Pop_dens=rep(mean(gls.data$Pop_dens),
-                        length(gls.data$Pop_dens)),Dist_TourOp=rep(mean(gls.data$Dist_TourOp),
-                        length(gls.data$Dist_TourOp)),Dist_CarPark=rep(mean(gls.data$Dist_CarPark),
-                        length(gls.data$Dist_CarPark)),Dist_road=rep(mean(gls.data$Dist_road),
-                        length(gls.data$Dist_road)))
-
-newdata.Air<-data.frame(Count_WW= gls.data$Count_WW,
-                        Count_Bus=rep(mean(gls.data$Count_Bus),length(gls.data$Count_Bus)),
-                          Count_Hotel=rep(mean(gls.data$Count_Hotel),length(gls.data$Count_Bus)),
-                          Dist_Air=seq(from=min(gls.data$Dist_Air),to=max(gls.data$Dist_Air),
-                         length.out=length(gls.data$Dist_Air)),Dist_Train=rep(mean(gls.data$Dist_Train),
-                          length(gls.data$Dist_Train)),Pop_dens=rep(mean(gls.data$Pop_dens),
-                          length(gls.data$Pop_dens)),Dist_TourOp=rep(mean(gls.data$Dist_TourOp),
-                          length(gls.data$Dist_TourOp)),Dist_CarPark=rep(mean(gls.data$Dist_CarPark),
-                          length(gls.data$Dist_CarPark)),Dist_road=rep(mean(gls.data$Dist_road),
-                          length(gls.data$Dist_road)))
+# plotting
+nseq <- function(x, len = length(x)) {seq(min(x, na.rm = TRUE), 
+                                          max(x, na.rm = TRUE), length = len)}
 
 
-Bus.preds <- sapply(inf.pred.parms, predict, newdata = newdata.Bus) 
-Bus.ave4plot<-Bus.preds %*% Weights(inf.sel.sub) 
+# Count_Hotel
 
-plot(gls.data$Count_WW~newdata.Bus$Count_Bus)
-lines(Bus.ave4plot~newdata.Bus$Count_Bus)
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
 
-Hotel.preds <- sapply(inf.pred.parms, predict, newdata = newdata.Hotel)
-Hotel.ave4plot<-Hotel.preds %*% Weights(inf.sel.sub) 
+newdata$Count_Hotel <- nseq(gls.data$Count_Hotel, nrow(newdata))
 
-plot(gls.data$Count_WW~newdata.Hotel$Count_Hotel)
-lines(Hotel.ave4plot~newdata.Hotel$Count_Hotel)
+preds_hotel <- predict(inf.avg, se.fit=TRUE, full=T, newdata)
+
+pred_hotel <- ggplot(newdata, aes(x=Count_Hotel, y=preds_hotel$fit)) +
+  geom_ribbon(aes(ymin = preds_hotel$fit-1.96*preds_hotel$se.fit, 
+                  ymax =  preds_hotel$fit+1.96*preds_hotel$se.fit), alpha = .4, fill = "thistle3") +
+  geom_line(size = 2, col = "thistle4") +
+  labs(x = "Count_Hotel", y = "Count_WW") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+#print(pred_hotel)
+
+# full=T defines the use of  full model-averaged coefficients see [here][1]
+
+# Count_Bus
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+
+newdata$Count_Bus <- nseq(gls.data$Count_Bus, nrow(newdata))
+
+preds_bus <- predict(inf.avg, se.fit=TRUE, full=T, newdata)
+
+pred_bus <- ggplot(newdata, aes(x=Count_Bus, y=preds_bus$fit)) +
+  geom_ribbon(aes(ymin = preds_bus$fit-1.96*preds_bus$se.fit, 
+                  ymax =  preds_bus$fit+1.96*preds_bus$se.fit), alpha = .4, fill = "thistle3") +
+  geom_line(size = 2, col = "Thistle4") +
+  labs(x = "Count_Bus", y = "Count_WW")+
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+#print(pred_bus)
+
+# full=T defines the use of  full model-averaged coefficients see [here][1]
+
+# Dist_Air
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+
+newdata$Dist_Air <- nseq(gls.data$Dist_Air, nrow(newdata))
+
+preds_air <- predict(inf.avg, se.fit=TRUE, full=T, newdata)
+
+pred_air <- ggplot(newdata, aes(x=Dist_Air, y=preds_air$fit)) +
+  geom_ribbon(aes(ymin = preds_air$fit-1.96*preds_air$se.fit, 
+                  ymax =  preds_air$fit+1.96*preds_air$se.fit), alpha = .5, fill = "thistle3") +
+  geom_line(size = 2, col = "Thistle4") +
+  labs(x = "Dist_Air", y = "Count_WW") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+#print(pred_air)
+
+# full=T defines the use of  full model-averaged coefficients see [here][1]
+source("Multiplot.R")
+png("Inf_Effects.png", bg = "transparent", width = 17, height = 15, units = "cm", res = 600)
+multiplot(pred_hotel, pred_bus, pred_air, cols = 3)
+dev.off()
+
+# Environment
+# subset object to avoid running out of memory
+
+env.sel<-readRDS("Environment_sel.rds")
+env.sel.sub1 <- subset(env.sel, delta < 1)
+saveRDS(env.sel.sub1, "Environment_sel1.rds")
+rm(env.sel.sub1)
+
+env.sel.sub2 <- subset(env.sel, delta>=1 & delta < 2)
+saveRDS(env.sel.sub2, "Environment_sel2.rds")
+rm(env.sel.sub2)
+
+env.sel.sub3 <- subset(env.sel, delta>=2 & delta < 3)
+saveRDS(env.sel.sub3, "Environment_sel3.rds")
+rm(env.sel.sub3)
+
+env.sel.sub4 <- subset(env.sel, delta>=3 & delta < 3.5)
+saveRDS(env.sel.sub4, "Environment_sel4.rds")
+rm(env.sel.sub4)
+
+env.sel.sub5 <- subset(env.sel, delta> 3.5 & delta < 4)
+saveRDS(env.sel.sub5, "Environment_sel5.rds")
+rm(env.sel.sub5)
+
+env.sel.sub6 <- subset(env.sel, delta> 4 & delta < 4.5)
+saveRDS(env.sel.sub6, "Environment_sel6.rds")
+rm(env.sel.sub6)
+
+env.sel.sub7 <- subset(env.sel, delta> 4.5 & delta < 5)
+saveRDS(env.sel.sub7, "Environment_sel7.rds")
+rm(env.sel.sub7)
+
+# env.sel.sub8 <- subset(env.sel, delta> 3.5 & delta < 4)
+# saveRDS(env.sel.sub8, "Environment_sel8.rds")
+# rm(env.sel.sub8)
+# 
+# env.sel.sub9 <- subset(env.sel, delta> 4 & delta < 4.5)
+# saveRDS(env.sel.sub9, "Environment_sel9.rds")
+# rm(env.sel.sub9)
+# 
+# env.sel.sub10 <- subset(env.sel, delta> 4.5 & delta < 5)
+# saveRDS(env.sel.sub10, "Environment_sel10.rds")
+# rm(env.sel.sub10)
+# 
+
+# now close R and start new session to free up memory
+# keep starting a new R session after fitting each group of models
+# only way to avoid running out of memory
+
+env.sel.sub1 <- readRDS("Environment_sel1.rds")
+str(env.sel.sub1)
+env.sel.REML1<-get.models(env.sel.sub1, subset = TRUE, method = "REML")
+saveRDS(env.sel.REML1,"Environment_Best1.rds")
+# close R and start again
+
+env.sel.sub2 <- readRDS("Environment_sel2.rds")
+str(env.sel.sub2)
+env.sel.REML2<-get.models(env.sel.sub2, subset = TRUE, method = "REML")
+saveRDS(env.sel.REML2,"E:\\ChapterIII\\Environment_Best2.rds")
+# close R and start again
+
+env.sel.sub3 <- readRDS("Environment_sel3.rds")
+str(env.sel.sub3)
+env.sel.REML3<-get.models(env.sel.sub3, subset = TRUE, method = "REML")
+saveRDS(env.sel.REML3,"E:\\ChapterIII\\Environment_Best3.rds")
+# close R and start again
+
+env.sel.sub4 <- readRDS("Environment_sel4.rds")
+str(env.sel.sub4)
+env.sel.REML4<-get.models(env.sel.sub4, subset = TRUE, method = "REML")
+saveRDS(env.sel.REML4,"E:\\ChapterIII\\Environment_Best4.rds")
+# close R and start again
 
 
-Air.preds <- sapply(inf.pred.parms, predict, newdata = newdata.Air)
-Air.ave4plot<-Air.preds %*% Weights(inf.sel.sub)
+env.sel.sub5 <- readRDS("Environment_sel5.rds")
+str(env.sel.sub5)
+env.sel.REML5<-get.models(env.sel.sub5, subset = TRUE, method = "REML")
+saveRDS(env.sel.REML5,"E:\\ChapterIII\\Environment_Best5.rds")
+# close R and start again
 
-plot(gls.data$Count_WW~newdata.Air$Dist_Air)
-lines(Air.ave4plot~newdata.Air$Dist_Air)
 
+env.sel.sub6 <- readRDS("Environment_sel6.rds")
+str(env.sel.sub6)
+env.sel.REML6<-get.models(env.sel.sub6, subset = TRUE, method = "REML")
+saveRDS(env.sel.REML6,"E:\\ChapterIII\\Environment_Best6.rds")
+# close R and start again
+
+env.sel.sub7 <- readRDS("Environment_sel7.rds")
+str(env.sel.sub7)
+env.sel.REML7<-get.models(env.sel.sub7, subset = TRUE, method = "REML")
+saveRDS(env.sel.REML7,"E:\\ChapterIII\\Environment_Best7.rds")
+# close R and start again
+
+# env.sel.sub8 <- readRDS("Environment_sel8.rds")
+# env.sel.REML8<-get.models(env.sel.sub8, subset = TRUE, method = "REML")
+# saveRDS(env.sel.REML8,"Environment_Best8.rds")
+# rm(env.sel.sub8, env.sel.REML8)
+# gc()
+# 
+# env.sel.sub9 <- readRDS("Environment_sel9.rds")
+# env.sel.REML9<-get.models(env.sel.sub9, subset = TRUE, method = "REML")
+# saveRDS(env.sel.REML9,"Environment_Best9.rds")
+# rm(env.sel.sub9, env.sel.REML9)
+# gc()
+# 
+# env.sel.sub10 <- readRDS("Environment_sel10.rds")
+# env.sel.REML10<-get.models(env.sel.sub10, subset = TRUE, method = "REML")
+# saveRDS(env.sel.REML10,"Environment_Best10.rds")
+# rm(env.sel.sub10, env.sel.REML10)
+# gc()
+
+# #refit subset of models with REML
+# # Calculate the number of cores
+# cores <- detectCores()
+# 
+# # Set up a cluster with number of cores specified as result of detectCores() 
+# #   and call it "clust" 
+# clust <- makeCluster(cores)
+# 
+# 
+# # Load required packages onto worker nodes
+# #   (in this example, load packages {MASS} and {MuMIn} to be used by pdredg)
+# clusterEvalQ(clust,library(nlme))
+# clusterEvalQ(clust,library(MuMIn))
+# clusterExport(clust,"gls.data")  #export the dataframe to the cluster
+# clusterExport(clust,"env.sel.sub")  #export the model selection object to the cluster
+# 
+# env.sel.REML<-get.models(env.sel.sub, subset = TRUE, method = "REML")
+# 
+# saveRDS(env.sel.REML,"Environment_Best.rds")
+# 
+# stopCluster(clust)
+
+env.sel.REML1<-readRDS("Environment_Best1.rds")
+
+env.sel.REML2<-readRDS("D:\\ChapterIII\\Environment_Best2.rds")
+
+env.sel.REML3<-readRDS("D:\\ChapterIII\\Environment_Best3.rds")
+
+env.sel.REML4<-readRDS("D:\\ChapterIII\\Environment_Best4.rds")
+
+env.sel.REML5<-readRDS("D:\\ChapterIII\\Environment_Best5.rds")
+
+env.sel.REML6<-readRDS("D:\\ChapterIII\\Environment_Best6.rds")
+
+env.sel.REML7.1<-readRDS("D:\\ChapterIII\\Environment_Best7.1.rds")
+
+env.sel.REML7.2<-readRDS("D:\\ChapterIII\\Environment_Best7.2.rds")
+
+
+# calculate variable importance 
+
+env.sel.REML <- c(env.sel.REML1, env.sel.REML2, env.sel.REML3, 
+                  env.sel.REML4, env.sel.REML5, env.sel.REML6,
+                  env.sel.REML7.1, env.sel.REML7.2)
+
+env.var.imp<-importance(env.sel.REML)
+
+# put it into a dataframe format
+
+df <- as.data.frame(env.var.imp)
+
+env.var.imp <- cbind(df, attr(env.var.imp, "names"))
+
+names(env.var.imp) <- c("Importance", "Var")
+
+# and plot
+
+library(ggplot2)
+
+EnvVarImpVis <- ggplot (env.var.imp, aes(Var, Importance, fill = Importance)) +
+  geom_hline(yintercept = seq(0, 1.2, by = 0.5), colour = "grey90", size = 1) +
+  geom_vline(aes(xintercept = Var), colour = "grey90", size = 1) +
+  geom_bar(width = 1, stat = "identity", color = "white") +
+  scale_y_continuous(breaks = 0:nlevels(as.factor(env.var.imp$Var))) +
+  scale_fill_gradient(low = "darkolivegreen1", high = "darkolivegreen4") +
+  theme_bw() +
+  theme(axis.title = element_blank(),
+        panel.border = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.y = element_blank(),
+        panel.grid = element_blank(),
+        axis.text.x = element_text(size = 12),
+        legend.title = element_text(size = 15),
+        legend.text = element_text(size = 12))
+
+EnvVarImpVis +coord_polar()
+
+
+#model averaging
+env.avg<-model.avg(env.sel.REML, revised.var = TRUE) 
+summary(env.avg) 
+
+env.confint<-confint(env.avg)
+
+
+# plotting
+nseq <- function(x, len = length(x)) {seq(min(x, na.rm = TRUE), 
+                                          max(x, na.rm = TRUE), length = len)}
+
+
+# Area_CNTRY
+
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+
+newdata$Area_CNTRY <- nseq(gls.data$Area_CNTRY, nrow(newdata))
+
+preds_CNTRY <- predict(env.avg, se.fit=TRUE, full=T, newdata)
+
+pred_CNTRY <- ggplot(newdata, aes(x=Area_CNTRY, y=preds_CNTRY$fit)) +
+  geom_ribbon(aes(ymin = preds_CNTRY$fit-1.96*preds_CNTRY$se.fit, 
+                  ymax =  preds_CNTRY$fit+1.96*preds_CNTRY$se.fit), alpha = .4, fill = "darkolivegreen3") +
+  geom_line(size = 2, col = "darkolivegreen4") +
+  labs(x = "Area_CNTRY", y = "Count_WW") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+#print(pred_CNTRY)
+
+# full=T defines the use of  full model-averaged coefficients see [here][1]
+
+# Area_LNR
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+
+newdata$Area_LNR <- nseq(gls.data$Area_LNR, nrow(newdata))
+
+preds_LNR<- predict(env.avg, se.fit=TRUE, full=T, newdata)
+
+pred_LNR <- ggplot(newdata, aes(x=Area_LNR, y=preds_LNR$fit)) +
+  geom_ribbon(aes(ymin = preds_LNR$fit-1.96*preds_LNR$se.fit, 
+                  ymax =  preds_LNR$fit+1.96*preds_LNR$se.fit), alpha = .4, fill = "darkolivegreen3") +
+  geom_line(size = 2, col = "darkolivegreen4") +
+  labs(x = "Area_LNR", y = "Count_WW")+
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+#print(pred_LNR)
+
+# full=T defines the use of  full model-averaged coefficients see [here][1]
+
+# Area_NP
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+
+newdata$Area_NP <- nseq(gls.data$Area_NP, nrow(newdata))
+
+preds_NP <- predict(env.avg, se.fit=TRUE, full=T, newdata)
+
+pred_NP <- ggplot(newdata, aes(x=Area_NP, y=preds_NP$fit)) +
+  geom_ribbon(aes(ymin = preds_NP$fit-1.96*preds_NP$se.fit, 
+                  ymax =  preds_NP$fit+1.96*preds_NP$se.fit), alpha = .4, fill = "darkolivegreen3") +
+  geom_line(size = 2, col = "darkolivegreen4") +
+  labs(x = "Area_NP", y = "Count_WW") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+#print(pred_NP)
+
+# full=T defines the use of  full model-averaged coefficients see [here][1]
+
+# Dist_MSAC
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+
+newdata$Dist_MSAC <- nseq(gls.data$Dist_MSAC, nrow(newdata))
+
+preds_MSAC <- predict(env.avg, se.fit=TRUE, full=T, newdata)
+
+pred_MSAC <- ggplot(newdata, aes(x=Dist_MSAC, y=preds_MSAC$fit)) +
+  geom_ribbon(aes(ymin = preds_MSAC$fit-1.96*preds_MSAC$se.fit, 
+                  ymax =  preds_MSAC$fit+1.96*preds_MSAC$se.fit), alpha = .4, fill = "darkolivegreen3") +
+  geom_line(size = 2, col = "darkolivegreen4") +
+  labs(x = "Dist_MSAC", y = "Count_WW") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+#print(pred_MSAC)
+
+# # Mean_Nat
+# newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+# 
+# newdata$Dist_MSAC <- nseq(gls.data$Mean_Nat, nrow(newdata))
+# 
+# preds_NAT <- predict(env.avg, se.fit=TRUE, full=T, newdata)
+# 
+# pred_NAT <- ggplot(newdata, aes(x=Mean_Nat, y=preds_NAT$fit)) +
+#   geom_ribbon(aes(ymin = preds_NAT$fit-1.96*preds_NAT$se.fit, 
+#                   ymax =  preds_NAT$fit+1.96*preds_NAT$se.fit), alpha = .4, fill = "darkolivegreen3") +
+#   geom_line(size = 2, col = "darkolivegreen4") +
+#   labs(x = "Mean_Nat", y = "Count_WW") +
+#   theme_bw() +
+#   theme(panel.grid = element_blank())
+
+#print(pred_NAT)
+
+# full=T defines the use of  full model-averaged coefficients see [here][1]
+
+#source("Multiplot.R")
+png("Env_Effects.png", bg = "transparent", width = 17, height = 25, units = "cm", res = 600)
+multiplot(pred_CNTRY, pred_LNR, pred_NP, pred_MSAC, cols = 2)
+dev.off()
 
 # Biodiversity #####
-
-data_sub<-read.table(".//data//CombinedData_v11.txt",stringsAsFactors = F,header=T)
 
 #look at distribution of biodiversity records
 par(mfrow=c(2,1))
@@ -480,38 +892,25 @@ plot(density(log(data_sub$Species[which(data_sub$Records>7)])),main="Density of 
 
 #read classification from mixture model
 classes<-read.table("data/classification.txt")
+names(classes) <- "Class"
 
-#calculate log of records
+# calculate log of records
 data_sub$logrec<-log(data_sub$Records+1)
 
-#only select non 0 records
+# only select non 0 records
 data.pos<-data_sub[data_sub$logrec>0,]
 
 #now select only records belonging to group 2
 data.gr2<-cbind(data.pos,classes)
-data.gr2<-data.gr2[data.gr2$x==2,]
+data.gr2<-data.gr2[data.gr2$Class==2,]
 str(data.gr2)
 
-#transform coordinates from latlong to utm to avoid issues with correlation structures
+## model effect of biodiversity
 
-library(rgdal)
+## wait until mod sel for environ variables finishes 
+## and then use most important ones in bio model
 
-coordinates(data.gr2) <- data.gr2[,c(29,30)]
-crs.geo <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84")  # geographical, datum WGS84
-
-proj4string(data.gr2) <- crs.geo                             # assign the coordinate system
-
-coords_proj <- spTransform(data.gr2, CRS("+proj=utm +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0 "))
-
-data.gr2<-cbind(data.gr2@data[,-52], coords_proj@coords)
-
-str(data.gr2)
-names(data.gr2)[c(52,53)] <- c("x","y")
-
-
-##model effect of biodiversity
-
-bio.1<-lm(log10(Count_WW+1)~log10(Species) +offset(log10(Pop_dens+1)),data=data.gr2)
+bio.1<-lm(log10(Count_WW+1)~log10(Species),data=data.gr2)
 summary(bio.1)
 
 par(mfrow=c(2,2))
@@ -522,7 +921,7 @@ S.res.bio.1<-rstandard(bio.1)
 
 #create a spatial dataframe
 mydata_sp<-data.gr2
-coordinates(mydata_sp)<-c("Longitude", "Latitude")
+coordinates(mydata_sp)<-c("x", "y")
 
 #calculate and plot variograms
 Vario<-variogram(S.res.bio.1~1,data=mydata_sp)
@@ -532,43 +931,35 @@ plot(Vario)
 plot(Variodir)
 
 #make a bubble plot of the residuals to check for spatial patterns
-bubble.data<-data.frame(S.res.bio.1,data.gr2$Longitude,data.gr2$Latitude)
-coordinates(bubble.data)<-c("data.gr2.Longitude","data.gr2.Latitude")
+bubble.data<-data.frame(S.res.bio.1,data.gr2$x,data.gr2$y)
+coordinates(bubble.data)<-c("data.gr2.x","data.gr2.y")
 
 bubble(bubble.data,"S.res.bio.1",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
 
 #####gls
 
-data.bio.gls<-data.frame(Count_WW=log10(data.gr2$Count_WW+1),Species=log10(data.gr2$Species),
-                         Pop_dens = log10(data.gr2$Pop_dens + 1), x=data.gr2$x,y=data.gr2$y)
+data.bio.gls<-data.frame(Count_WW=log10(data.gr2$Count_WW+1),
+                         Species=log10(data.gr2$Species),
+                         x=data.gr2$x,y=data.gr2$y)
 
 
-bio.gls.exp<-gls(Count_WW ~ Species + offset(Pop_dens), 
-                 data = data.bio.gls, correlation = corExp(form = ~ x+y,nugget = T))
+bio.gls.exp<-gls(Count_WW ~ Species,data = data.bio.gls, correlation = corExp(form = ~ x+y,nugget = T))
 
-bio.gls.exp2<-gls(Count_WW ~ Species + Pop_dens,
-                 data = data.bio.gls, correlation = corExp(form = ~ x+y,nugget = T))
+bio.gls.lin<-gls(Count_WW ~ Species, data = data.bio.gls, correlation = corLin(form = ~ x+y,nugget = T))
 
+bio.gls.ratio<-gls(Count_WW ~ Species, data = data.bio.gls, correlation = corRatio(form = ~ x+y,nugget = T))
 
-bio.gls.lin<-gls(Count_WW ~ Species + offset(Pop_dens), 
-                 data = data.bio.gls, correlation = corLin(form = ~ x+y,nugget = T))
+bio.gls.gaus<-gls(Count_WW ~ Species, data = data.bio.gls, correlation = corGaus(form = ~ x+y,nugget = T))
 
-bio.gls.ratio<-gls(Count_WW ~ Species + offset(Pop_dens), 
-                 data = data.bio.gls, correlation = corRatio(form = ~ x+y,nugget = T))
-
-bio.gls.gaus<-gls(Count_WW ~ Species + offset(Pop_dens), 
-                 data = data.bio.gls, correlation = corGaus(form = ~ x+y,nugget = T))
-
-bio.gls.sph<-gls(Count_WW ~ Species + offset(Pop_dens), 
-                  data = data.bio.gls, correlation = corSpher(form = ~ x+y,nugget = T))
+bio.gls.sph<-gls(Count_WW ~ Species, data = data.bio.gls, correlation = corSpher(form = ~ x+y,nugget = T))
 
 AIC(bio.gls.exp, bio.gls.lin, bio.gls.ratio, bio.gls.gaus, bio.gls.sph)
 
 summary(bio.gls.exp)
 
-res.bio.gls<-residuals(bio.gls.exp2, type="normalized")
+res.bio.gls<-residuals(bio.gls.exp, type="normalized")
 
-fit.bio.gls<-fitted(bio.gls.exp2)
+fit.bio.gls<-fitted(bio.gls.exp)
 
 par(mfrow=c(1,2))
 plot(res.bio.gls ~ fit.bio.gls)
@@ -585,11 +976,11 @@ plot(Vario)
 
 #####calculate and plot predictions
 
-pred_data<-data.frame(Species=seq(from=min(data.bio.gls$Species), 
-                                  to=max(data.bio.gls$Species),by=0.001),
-                      Pop_dens = rep(max(data.bio.gls$Pop_dens), n = 2604))
+pred_data<-data.frame(Count_WW = data.bio.gls$Count_WW, 
+                      Species=seq(from=min(data.bio.gls$Species), 
+                      to=max(data.bio.gls$Species),length.out = 760))
 
-preds<-predict(bio.gls.exp2,pred_data,type="response")
+preds<-predict(bio.gls.exp,pred_data,type="response")
 
 plot(Count_WW~Species,data=data.bio.gls)
 lines(preds~pred_data$Species)
