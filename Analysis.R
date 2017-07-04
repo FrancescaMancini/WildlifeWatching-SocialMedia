@@ -10,8 +10,6 @@ library(rgdal)
 library(nlme)
 library(MuMIn)
 library(ggplot2)
-library(effects)
-library(visreg)
 
 # Linear models #####
 
@@ -907,51 +905,27 @@ str(data.gr2)
 
 ## model effect of biodiversity
 
-## wait until mod sel for environ variables finishes 
-## and then use most important ones in bio model
-
-bio.1<-lm(log10(Count_WW+1)~log10(Species),data=data.gr2)
-summary(bio.1)
-
-par(mfrow=c(2,2))
-plot(bio.1)
-
-#extract the standardised residuals
-S.res.bio.1<-rstandard(bio.1)
-
-#create a spatial dataframe
-mydata_sp<-data.gr2
-coordinates(mydata_sp)<-c("x", "y")
-
-#calculate and plot variograms
-Vario<-variogram(S.res.bio.1~1,data=mydata_sp)
-Variodir<-variogram(S.res.bio.1~1,data=mydata_sp,alpha=c(0,45,90,135))
-
-plot(Vario)
-plot(Variodir)
-
-#make a bubble plot of the residuals to check for spatial patterns
-bubble.data<-data.frame(S.res.bio.1,data.gr2$x,data.gr2$y)
-coordinates(bubble.data)<-c("data.gr2.x","data.gr2.y")
-
-bubble(bubble.data,"S.res.bio.1",col=c("black","grey"),main="Residuals",xlab="Longitude",ylab="Latitude")
-
 #####gls
+gls.data.bio<-data.frame(Count_WW=log10(data.gr2$Count_WW+1), Dist_MSAC=scale(data.gr2$Dist_MSAC,scale=T),
+                     Area_LNR=scale(data.gr2$Area_LNR,scale=T), Area_CNTRY=scale(data.gr2$Area_CNTRY,scale=T), 
+                     Area_NP=scale(data.gr2$Area_NP,scale=T), Mean_Nat=scale(data.gr2$Mean_Nat,scale=T),
+                     Species=log10(data.gr2$Species), x=data.gr2$x,y=data.gr2$y)
 
-data.bio.gls<-data.frame(Count_WW=log10(data.gr2$Count_WW+1),
-                         Species=log10(data.gr2$Species),
-                         x=data.gr2$x,y=data.gr2$y)
 
+bio.gls.exp<-gls(Count_WW ~ Dist_MSAC + Area_LNR + Area_CNTRY + Area_NP + Mean_Nat + Species,
+                 data = gls.data.bio, correlation = corExp(form = ~ x+y,nugget = T))
 
-bio.gls.exp<-gls(Count_WW ~ Species,data = data.bio.gls, correlation = corExp(form = ~ x+y,nugget = T))
+bio.gls.lin<-gls(Count_WW ~ Dist_MSAC + Area_LNR + Area_CNTRY + Area_NP + Mean_Nat + Species,
+                 data = gls.data.bio, correlation = corLin(form = ~ x+y,nugget = T))
 
-bio.gls.lin<-gls(Count_WW ~ Species, data = data.bio.gls, correlation = corLin(form = ~ x+y,nugget = T))
+bio.gls.ratio<-gls(Count_WW ~ Dist_MSAC + Area_LNR + Area_CNTRY + Area_NP + Mean_Nat + Species,
+                   data = gls.data.bio, correlation = corRatio(form = ~ x+y,nugget = T))
 
-bio.gls.ratio<-gls(Count_WW ~ Species, data = data.bio.gls, correlation = corRatio(form = ~ x+y,nugget = T))
+bio.gls.gaus<-gls(Count_WW ~ Dist_MSAC + Area_LNR + Area_CNTRY + Area_NP + Mean_Nat + Species,
+                  data = gls.data.bio, correlation = corGaus(form = ~ x+y,nugget = T))
 
-bio.gls.gaus<-gls(Count_WW ~ Species, data = data.bio.gls, correlation = corGaus(form = ~ x+y,nugget = T))
-
-bio.gls.sph<-gls(Count_WW ~ Species, data = data.bio.gls, correlation = corSpher(form = ~ x+y,nugget = T))
+bio.gls.sph<-gls(Count_WW ~ Dist_MSAC + Area_LNR + Area_CNTRY + Area_NP + Mean_Nat + Species,
+                 data = gls.data.bio, correlation = corSpher(form = ~ x+y,nugget = T))
 
 AIC(bio.gls.exp, bio.gls.lin, bio.gls.ratio, bio.gls.gaus, bio.gls.sph)
 
@@ -970,47 +944,29 @@ qqline(res.bio.gls)
 
 
 #calculate and plot variograms
+#create a spatial dataframe
+mydata_sp<-gls.data.bio
+coordinates(mydata_sp)<-c("x", "y")
+
 Vario<-variogram(res.bio.gls~1,data=mydata_sp)
 
 plot(Vario)
 
-#####calculate and plot predictions
+# visualise effects
+# Area_PA
 
-pred_data<-data.frame(Count_WW = data.bio.gls$Count_WW, 
-                      Species=seq(from=min(data.bio.gls$Species), 
-                      to=max(data.bio.gls$Species),length.out = 760))
+newdata <- as.data.frame(lapply(lapply(gls.data.bio, mean), rep, 1000))
 
-preds<-predict(bio.gls.exp,pred_data,type="response")
+newdata$Species <- nseq(gls.data.bio$Species, nrow(newdata))
 
-plot(Count_WW~Species,data=data.bio.gls)
-lines(preds~pred_data$Species)
+preds_sp <- predict(bio.gls.exp, se.fit=TRUE, newdata)
 
-#not a very good fit
-#maybe non linear relationship
-#try gam
+pred_sp <- ggplot(newdata, aes(x=Species, y=preds_sp$fit)) +
+  geom_ribbon(aes(ymin = preds_sp$fit-1.96*preds_sp$se.fit, 
+                  ymax =  preds_sp$fit+1.96*preds_sp$se.fit), alpha = 0.4, fill = "#A32765") +
+  geom_line(size = 2, col = "#A32765") +
+  labs(x = "Species (log(10)", y = "Wildlife Watchers (log10)") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
 
-library(mgcv)
-
-bio.gam<-gam(log10( Count_WW +1 )~s(Species),data=data.gr2)
-summary(bio.gam)
-
-plot(bio.gam)
-gam.check(bio.gam)
-
-pred_data<-data.frame(Species=seq(from=min(data.gr2$Species), 
-                                  to=max(data.gr2$Species),by=0.001))
-
-preds<-predict(bio.gam,pred_data,type="response",se=T)
-preds<-as.data.frame(preds)
-CIup<-preds$fit + 1.96 *preds$se.fit
-CIlow<-preds$fit - 1.96 *preds$se.fit
-
-
-library(scales)
-
-plot(log10(Count_WW +1)~Species,data=data.gr2, pch=20,col=alpha("cadetblue",0.5),xlab="Number of species",ylab="Number of Flickr users")
-lines(preds$fit~pred_data$Species, lwd=3, col="cadetblue")
-lines(CIup~pred_data$Species,lty=2,lwd=2,col="cadetblue")
-lines(CIlow~pred_data$Species,lty=2,lwd=2,col="cadetblue")
-
-
+pred_sp
