@@ -507,8 +507,6 @@ names(inf.var.imp) <- c("Importance", "Var")
 
 # and plot
 
-library(ggplot2)
-
 InfVarImpVis <- ggplot (inf.var.imp, aes(Var, Importance, fill = Importance)) +
   geom_hline(yintercept = seq(0, 1.2, by = 0.5), colour = "grey90", size = 1) +
   geom_vline(aes(xintercept = Var), colour = "grey90", size = 1) +
@@ -521,12 +519,13 @@ InfVarImpVis <- ggplot (inf.var.imp, aes(Var, Importance, fill = Importance)) +
         axis.ticks = element_blank(),
         axis.text.y = element_blank(),
         panel.grid = element_blank(),
-        axis.text.x = element_text(size = 12),
+        axis.text.x = element_blank(),
         legend.title = element_text(size = 15),
         legend.text = element_text(size = 12))
 
+png("Infr_VarImp.png", bg = "transparent", width = 17, height = 17, units = "cm", res = 600)
 InfVarImpVis +coord_polar()
-
+dev.off()
 
 #model averaging
 inf.avg<-model.avg(inf.sel.REML, revised.var = TRUE) 
@@ -805,12 +804,13 @@ EnvVarImpVis <- ggplot (env.var.imp, aes(Var, Importance, fill = Importance)) +
         axis.ticks = element_blank(),
         axis.text.y = element_blank(),
         panel.grid = element_blank(),
-        axis.text.x = element_text(size = 12),
+        axis.text.x = element_blank(),
         legend.title = element_text(size = 15),
         legend.text = element_text(size = 12))
 
+png("Env_VarImp.png", bg = "transparent", width = 17, height = 17, units = "cm", res = 600)
 EnvVarImpVis +coord_polar()
-
+dev.off()
 
 #model averaging
 env.avg<-model.avg(env.sel.REML, revised.var = TRUE) 
