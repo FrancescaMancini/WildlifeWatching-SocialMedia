@@ -10,6 +10,8 @@ library(rgdal)
 library(nlme)
 library(MuMIn)
 library(ggplot2)
+source("Multiplot.R")
+source("nseq.R")
 
 # Linear models #####
 
@@ -189,27 +191,30 @@ Vario.agg.gls<-Variogram(agg.gls.exp,form= ~x+y,robust=T,resType = "normalized")
 plot(Vario.agg.gls, smooth=F)
 
 # visualise effects ####
-
-library(effects)
-
-agg.ef.PA <- Effect("Area_PA", agg.gls.exp)#, transformation = list(link = log10, inverse = function(x){10^x}))
-agg.ef.MN <- Effect("Mean_Nat", agg.gls.exp)#, transformation = list(link = log10, inverse = function(x){10^x}))
-agg.ef.Inf <- Effect("Count_Inf", agg.gls.exp)#, transformation = list(link = log10, inverse = function(x){10^x}))
-
-
-plot(agg.ef.PA, colors = c("mediumpurple4", "mediumpurple1"), lwd = 2,
-     main = "", style="stacked",rug=F, key.args=list(space="right"),
-     row = 1,col = 1,nrow = 1,ncol = 3,more = TRUE)
-plot(agg.ef.MN, colors = c("mediumpurple4", "mediumpurple1"), lwd = 2,
-     main = "", style="stacked",rug=F, key.args=list(space="right"),
-     row = 1,col = 2,nrow = 1,ncol = 3, ylab = "", more = TRUE)
-plot(agg.ef.Inf, colors = c("mediumpurple4", "mediumpurple1"), lwd = 2,
-     main = "", style="stacked",rug=F, key.args=list(space="right"),
-     row = 1,col = 3,nrow = 1,ncol = 3, ylab = "")
+# 
+# library(effects)
+# 
+# agg.ef.PA <- Effect("Area_PA", agg.gls.exp)#, transformation = list(link = log10, inverse = function(x){10^x}))
+# agg.ef.MN <- Effect("Mean_Nat", agg.gls.exp)#, transformation = list(link = log10, inverse = function(x){10^x}))
+# agg.ef.Inf <- Effect("Count_Inf", agg.gls.exp)#, transformation = list(link = log10, inverse = function(x){10^x}))
+# 
+# 
+# plot(agg.ef.PA, colors = c("mediumpurple4", "mediumpurple1"), lwd = 2,
+#      main = "", style="stacked",rug=F, key.args=list(space="right"),
+#      row = 1,col = 1,nrow = 1,ncol = 3,more = TRUE)
+# plot(agg.ef.MN, colors = c("mediumpurple4", "mediumpurple1"), lwd = 2,
+#      main = "", style="stacked",rug=F, key.args=list(space="right"),
+#      row = 1,col = 2,nrow = 1,ncol = 3, ylab = "", more = TRUE)
+# plot(agg.ef.Inf, colors = c("mediumpurple4", "mediumpurple1"), lwd = 2,
+#      main = "", style="stacked",rug=F, key.args=list(space="right"),
+#      row = 1,col = 3,nrow = 1,ncol = 3, ylab = "")
 
 # Area_PA
 
-newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1131))
+newdata$Area_PA_org <- gls.data$Area_PA 
+newdata$Count_WW <- gls.data$Count_WW
 
 newdata$Area_PA <- nseq(gls.data$Area_PA, nrow(newdata))
 
@@ -219,16 +224,26 @@ pred_PA <- ggplot(newdata, aes(x=Area_PA, y=preds_PA$fit)) +
   geom_ribbon(aes(ymin = preds_PA$fit-1.96*preds_PA$se.fit, 
                   ymax =  preds_PA$fit+1.96*preds_PA$se.fit), alpha = 0.4, fill = "#E2E888") +
   geom_line(size = 2, col = "#E2E888") +
-  labs(x = "Area_PA", y = "Count_WW") +
+  geom_rug(aes(x=Area_PA_org, y=Count_WW), alpha = 1/2, position = "jitter", size = 0.2)+
+  labs(x = "Protected Areas", y = "Wildlife pictures (log10)") +
   theme_bw() +
-  theme(panel.grid = element_blank())
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'),
+        axis.text = element_text(size = 16, face = "bold.italic"),
+        axis.title = element_text(size = 18, face = "bold.italic"))
 
 #print(pred_PA)
 
 # full=T defines the use of  full model-averaged coefficients see [here][1]
 
 # Mean_Nat
-newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1131))
+newdata$Mean_Nat_org <- gls.data$Mean_Nat
+newdata$Count_WW <- gls.data$Count_WW
 
 newdata$Mean_Nat <- nseq(gls.data$Mean_Nat, nrow(newdata))
 
@@ -238,16 +253,25 @@ pred_nat <- ggplot(newdata, aes(x=Mean_Nat, y=preds_nat$fit)) +
   geom_ribbon(aes(ymin = preds_nat$fit-1.96*preds_nat$se.fit, 
                   ymax =  preds_nat$fit+1.96*preds_nat$se.fit), alpha = .4, fill = "#E2E888") +
   geom_line(size = 2, col = "#E2E888") +
-  labs(x = "Mean_Nat", y = "Count_WW")+
+  geom_rug(aes(x=Mean_Nat_org, y=Count_WW), alpha = 1/2, position = "jitter", size = 0.2)+
+  labs(x = "Naturalness", y = "")+
   theme_bw() +
-  theme(panel.grid = element_blank())
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'),
+        axis.text = element_text(size = 16, face = "bold.italic"),
+        axis.title = element_text(size = 18, face = "bold.italic"))
 
 #print(pred_nat)
 
 # full=T defines the use of  full model-averaged coefficients see [here][1]
 
 # Count_Inf
-newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1131))
+newdata$Count_Inf_org <- gls.data$Count_Inf
+newdata$Count_WW <- gls.data$Count_WW
 
 newdata$Count_Inf <- nseq(gls.data$Count_Inf, nrow(newdata))
 
@@ -257,14 +281,21 @@ pred_inf <- ggplot(newdata, aes(x=Count_Inf, y=preds_inf$fit)) +
   geom_ribbon(aes(ymin = preds_inf$fit-1.96*preds_inf$se.fit, 
                   ymax =  preds_inf$fit+1.96*preds_inf$se.fit), alpha = .4, fill = "#E2E888") +
   geom_line(size = 2, col = "#E2E888") +
-  labs(x = "Count_Inf", y = "Count_WW") +
+  geom_rug(aes(x=Count_Inf_org, y=Count_WW), alpha = 1/2, position = "jitter", size = 0.2)+
+  labs(x = "Infrastructures", y = "") +
   theme_bw() +
-  theme(panel.grid = element_blank())
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'),
+        axis.text = element_text(size = 16, face = "bold.italic"),
+        axis.title = element_text(size = 18, face = "bold.italic"))
 
 #print(pred_inf)
 
 # full=T defines the use of  full model-averaged coefficients see [here][1]
-source("Multiplot.R")
+
 png("Agg_Effects.png", bg = "transparent", width = 17, height = 15, units = "cm", res = 600)
 multiplot(pred_PA, pred_nat, pred_inf, cols = 3)
 dev.off()
@@ -504,13 +535,12 @@ summary(inf.avg)
 inf.confint<-confint(inf.avg)
 
 # plotting
-nseq <- function(x, len = length(x)) {seq(min(x, na.rm = TRUE), 
-                                          max(x, na.rm = TRUE), length = len)}
-
 
 # Count_Hotel
 
-newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1131))
+newdata$Count_Hotel_org <- gls.data$Count_Hotel 
+newdata$Count_WW <- gls.data$Count_WW
 
 newdata$Count_Hotel <- nseq(gls.data$Count_Hotel, nrow(newdata))
 
@@ -520,15 +550,24 @@ pred_hotel <- ggplot(newdata, aes(x=Count_Hotel, y=preds_hotel$fit)) +
   geom_ribbon(aes(ymin = preds_hotel$fit-1.96*preds_hotel$se.fit, 
                   ymax =  preds_hotel$fit+1.96*preds_hotel$se.fit), alpha = .4, fill = "thistle3") +
   geom_line(size = 2, col = "thistle4") +
-  labs(x = "Count_Hotel", y = "Count_WW") +
+  geom_rug(aes(x=Count_Hotel_org, y=Count_WW), alpha = 1/2, position = "jitter", size = 0.2)+
+  labs(x = "Hotels", y = "Wildlife pictures (log10)") +
   theme_bw() +
-  theme(panel.grid = element_blank())
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'),
+        axis.text = element_text(size = 16, face = "bold.italic"),
+        axis.title = element_text(size = 18, face = "bold.italic"))
 #print(pred_hotel)
 
 # full=T defines the use of  full model-averaged coefficients see [here][1]
 
 # Count_Bus
-newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1131))
+newdata$Count_Bus_org <- gls.data$Count_Bus 
+newdata$Count_WW <- gls.data$Count_WW
 
 newdata$Count_Bus <- nseq(gls.data$Count_Bus, nrow(newdata))
 
@@ -538,16 +577,25 @@ pred_bus <- ggplot(newdata, aes(x=Count_Bus, y=preds_bus$fit)) +
   geom_ribbon(aes(ymin = preds_bus$fit-1.96*preds_bus$se.fit, 
                   ymax =  preds_bus$fit+1.96*preds_bus$se.fit), alpha = .4, fill = "thistle3") +
   geom_line(size = 2, col = "Thistle4") +
-  labs(x = "Count_Bus", y = "Count_WW")+
+  geom_rug(aes(x=Count_Bus_org, y=Count_WW), alpha = 1/2, position = "jitter", size = 0.2)+
+  labs(x = "Bus Stations", y = "")+
   theme_bw() +
-  theme(panel.grid = element_blank())
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'),
+        axis.text = element_text(size = 16, face = "bold.italic"),
+        axis.title = element_text(size = 18, face = "bold.italic"))
 
 #print(pred_bus)
 
 # full=T defines the use of  full model-averaged coefficients see [here][1]
 
 # Dist_Air
-newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1131))
+newdata$Dist_Air_org <- gls.data$Dist_Air 
+newdata$Count_WW <- gls.data$Count_WW
 
 newdata$Dist_Air <- nseq(gls.data$Dist_Air, nrow(newdata))
 
@@ -557,14 +605,20 @@ pred_air <- ggplot(newdata, aes(x=Dist_Air, y=preds_air$fit)) +
   geom_ribbon(aes(ymin = preds_air$fit-1.96*preds_air$se.fit, 
                   ymax =  preds_air$fit+1.96*preds_air$se.fit), alpha = .5, fill = "thistle3") +
   geom_line(size = 2, col = "Thistle4") +
-  labs(x = "Dist_Air", y = "Count_WW") +
+  geom_rug(aes(x=Dist_Air_org, y=Count_WW), alpha = 1/2, position = "jitter", size = 0.2)+
+  labs(x = "Airports (dist)", y = "") +
   theme_bw() +
-  theme(panel.grid = element_blank())
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'),
+        axis.text = element_text(size = 16, face = "bold.italic"),
+        axis.title = element_text(size = 18, face = "bold.italic"))
 
 #print(pred_air)
 
 # full=T defines the use of  full model-averaged coefficients see [here][1]
-source("Multiplot.R")
 png("Inf_Effects.png", bg = "transparent", width = 17, height = 15, units = "cm", res = 600)
 multiplot(pred_hotel, pred_bus, pred_air, cols = 3)
 dev.off()
@@ -766,13 +820,11 @@ env.confint<-confint(env.avg)
 
 
 # plotting
-nseq <- function(x, len = length(x)) {seq(min(x, na.rm = TRUE), 
-                                          max(x, na.rm = TRUE), length = len)}
-
 
 # Area_CNTRY
-
-newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1131))
+newdata$Area_CNTRY_org <- gls.data$Area_CNTRY 
+newdata$Count_WW <- gls.data$Count_WW
 
 newdata$Area_CNTRY <- nseq(gls.data$Area_CNTRY, nrow(newdata))
 
@@ -782,15 +834,25 @@ pred_CNTRY <- ggplot(newdata, aes(x=Area_CNTRY, y=preds_CNTRY$fit)) +
   geom_ribbon(aes(ymin = preds_CNTRY$fit-1.96*preds_CNTRY$se.fit, 
                   ymax =  preds_CNTRY$fit+1.96*preds_CNTRY$se.fit), alpha = .4, fill = "darkolivegreen3") +
   geom_line(size = 2, col = "darkolivegreen4") +
-  labs(x = "Area_CNTRY", y = "Count_WW") +
+  geom_rug(aes(x=Area_CNTRY_org, y=Count_WW), alpha = 1/2, position = "jitter", size = 0.2)+
+  labs(x = "Country Parks", y = "Wildlife pictures (log10)") +
   theme_bw() +
-  theme(panel.grid = element_blank())
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'),
+        axis.text = element_text(size = 16, face = "bold.italic"),
+        axis.title = element_text(size = 18, face = "bold.italic"))
+
 #print(pred_CNTRY)
 
 # full=T defines the use of  full model-averaged coefficients see [here][1]
 
 # Area_LNR
-newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1131))
+newdata$Area_LNR_org <- gls.data$Area_LNR 
+newdata$Count_WW <- gls.data$Count_WW
 
 newdata$Area_LNR <- nseq(gls.data$Area_LNR, nrow(newdata))
 
@@ -800,16 +862,26 @@ pred_LNR <- ggplot(newdata, aes(x=Area_LNR, y=preds_LNR$fit)) +
   geom_ribbon(aes(ymin = preds_LNR$fit-1.96*preds_LNR$se.fit, 
                   ymax =  preds_LNR$fit+1.96*preds_LNR$se.fit), alpha = .4, fill = "darkolivegreen3") +
   geom_line(size = 2, col = "darkolivegreen4") +
-  labs(x = "Area_LNR", y = "Count_WW")+
+  geom_rug(aes(x=Area_LNR_org, y=Count_WW), alpha = 1/2, position = "jitter", size = 0.2)+
+  labs(x = "Local Nature Reserves", y = "Wildlife pictures (log10)")+
   theme_bw() +
-  theme(panel.grid = element_blank())
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'),
+        axis.text = element_text(size = 16, face = "bold.italic"),
+        axis.title = element_text(size = 18, face = "bold.italic"))
+
 
 #print(pred_LNR)
 
 # full=T defines the use of  full model-averaged coefficients see [here][1]
 
 # Area_NP
-newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1131))
+newdata$Area_NP_org <- gls.data$Area_NP 
+newdata$Count_WW <- gls.data$Count_WW
 
 newdata$Area_NP <- nseq(gls.data$Area_NP, nrow(newdata))
 
@@ -819,16 +891,25 @@ pred_NP <- ggplot(newdata, aes(x=Area_NP, y=preds_NP$fit)) +
   geom_ribbon(aes(ymin = preds_NP$fit-1.96*preds_NP$se.fit, 
                   ymax =  preds_NP$fit+1.96*preds_NP$se.fit), alpha = .4, fill = "darkolivegreen3") +
   geom_line(size = 2, col = "darkolivegreen4") +
-  labs(x = "Area_NP", y = "Count_WW") +
+  geom_rug(aes(x=Area_NP_org, y=Count_WW), alpha = 1/2, position = "jitter", size = 0.2)+
+  labs(x = "National Parks", y = "") +
   theme_bw() +
-  theme(panel.grid = element_blank())
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'),
+        axis.text = element_text(size = 16, face = "bold.italic"),
+        axis.title = element_text(size = 18, face = "bold.italic"))
 
 #print(pred_NP)
 
 # full=T defines the use of  full model-averaged coefficients see [here][1]
 
 # Dist_MSAC
-newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
+newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1131))
+newdata$Dist_MSAC_org <- gls.data$Dist_MSAC 
+newdata$Count_WW <- gls.data$Count_WW
 
 newdata$Dist_MSAC <- nseq(gls.data$Dist_MSAC, nrow(newdata))
 
@@ -838,30 +919,18 @@ pred_MSAC <- ggplot(newdata, aes(x=Dist_MSAC, y=preds_MSAC$fit)) +
   geom_ribbon(aes(ymin = preds_MSAC$fit-1.96*preds_MSAC$se.fit, 
                   ymax =  preds_MSAC$fit+1.96*preds_MSAC$se.fit), alpha = .4, fill = "darkolivegreen3") +
   geom_line(size = 2, col = "darkolivegreen4") +
-  labs(x = "Dist_MSAC", y = "Count_WW") +
+  geom_rug(aes(x=Dist_MSAC_org, y=Count_WW), alpha = 1/2, position = "jitter", size = 0.2)+
+  labs(x = "Marine SAC (dist)", y = "") +
   theme_bw() +
-  theme(panel.grid = element_blank())
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'),
+        axis.text = element_text(size = 16, face = "bold.italic"),
+        axis.title = element_text(size = 18, face = "bold.italic"))
 
 #print(pred_MSAC)
-
-# # Mean_Nat
-# newdata <- as.data.frame(lapply(lapply(gls.data, mean), rep, 1000))
-# 
-# newdata$Dist_MSAC <- nseq(gls.data$Mean_Nat, nrow(newdata))
-# 
-# preds_NAT <- predict(env.avg, se.fit=TRUE, full=T, newdata)
-# 
-# pred_NAT <- ggplot(newdata, aes(x=Mean_Nat, y=preds_NAT$fit)) +
-#   geom_ribbon(aes(ymin = preds_NAT$fit-1.96*preds_NAT$se.fit, 
-#                   ymax =  preds_NAT$fit+1.96*preds_NAT$se.fit), alpha = .4, fill = "darkolivegreen3") +
-#   geom_line(size = 2, col = "darkolivegreen4") +
-#   labs(x = "Mean_Nat", y = "Count_WW") +
-#   theme_bw() +
-#   theme(panel.grid = element_blank())
-
-#print(pred_NAT)
-
-# full=T defines the use of  full model-averaged coefficients see [here][1]
 
 #source("Multiplot.R")
 png("Env_Effects.png", bg = "transparent", width = 17, height = 25, units = "cm", res = 600)
@@ -955,7 +1024,9 @@ plot(Vario)
 # visualise effects
 # Area_PA
 
-newdata <- as.data.frame(lapply(lapply(gls.data.bio, mean), rep, 1000))
+newdata <- as.data.frame(lapply(lapply(gls.data.bio, mean), rep, 760))
+newdata$Species_org <- gls.data.bio$Species 
+newdata$Count_WW <- gls.data.bio$Count_WW
 
 newdata$Species <- nseq(gls.data.bio$Species, nrow(newdata))
 
@@ -965,8 +1036,17 @@ pred_sp <- ggplot(newdata, aes(x=Species, y=preds_sp$fit)) +
   geom_ribbon(aes(ymin = preds_sp$fit-1.96*preds_sp$se.fit, 
                   ymax =  preds_sp$fit+1.96*preds_sp$se.fit), alpha = 0.4, fill = "#A32765") +
   geom_line(size = 2, col = "#A32765") +
-  labs(x = "Species (log(10)", y = "Wildlife Watchers (log10)") +
+  geom_rug(aes(x=Species_org, y=Count_WW), alpha = 1/2, position = "jitter", size = 0.2)+
+  labs(x = "Species (log10)", y = "Wildlife pictures (log10)") +
   theme_bw() +
-  theme(panel.grid = element_blank())
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'),
+        axis.text = element_text(size = 16, face = "bold.italic"),
+        axis.title = element_text(size = 18, face = "bold.italic"))
 
+png("Bio_Effect.png", bg = "transparent", width = 8, height = 10, units = "cm", res = 600)
 pred_sp
+dev.off()
