@@ -300,6 +300,34 @@ png("Agg_Effects.png", bg = "transparent", width = 17, height = 15, units = "cm"
 multiplot(pred_PA, pred_nat, pred_inf, cols = 3)
 dev.off()
 
+#spatial plot of residuals
+res.agg <- gls.data$Count_WW - predict(agg.gls.exp)
+
+res.agg.sp <- data.frame(Residuals = res.agg, Longitude = gls.data$y, Latitude = gls.data$x)
+
+res.agg.plot <- ggplot(data=res.agg.sp, aes(x = Latitude, y = Longitude, height=10000, width=10000))+ 
+  geom_tile(aes(fill = Residuals)) + 
+  scale_fill_gradient2(low = "darkolivegreen", mid = "gold", high = "orangered") +
+  coord_fixed() + scale_x_continuous(labels = function(x){format(x, scientific=F)})+
+  theme_bw() +
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'),
+        axis.text = element_text(size = 6, face = "bold.italic"),
+        axis.title = element_text(size = 9, face = "bold.italic"),
+        legend.title = element_text(size = 6, face = "bold.italic"),
+        legend.text = element_text(size = 9))
+
+
+png("Agg.res.png", bg = "transparent", width = 8, height = 12, units = "cm", res = 600)
+res.agg.plot
+dev.off()
+
+
+
+
 # fit an environmental and an infrastructure model
 # to select important variables
 
@@ -479,7 +507,7 @@ stopCluster(clust)
 
 # Variable importance and model averaging #####
 
-# Infrastructures
+# Infrastructures ######
 
 inf.sel<-readRDS("Infrastructure_sel.rds")
 inf.sel
@@ -622,7 +650,33 @@ png("Inf_Effects.png", bg = "transparent", width = 17, height = 15, units = "cm"
 multiplot(pred_hotel, pred_bus, pred_air, cols = 3)
 dev.off()
 
-# Environment
+# spatial plots of residuals 
+res.inf <- gls.data$Count_WW - predict(inf.avg, full = T)
+
+res.inf.sp <- data.frame(Residuals = res.inf, Longitude = gls.data$y, Latitude = gls.data$x)
+
+
+res.plot <- ggplot(data=res.inf.sp, aes(x = Latitude, y = Longitude, height=10000, width=10000))+ 
+  geom_tile(aes(fill = Residuals)) + 
+  scale_fill_gradient2(low = "darkolivegreen", mid = "gold", high = "orangered") +
+  coord_fixed() + scale_x_continuous(labels = function(x){format(x, scientific=F)})+
+  theme_bw() +
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'),
+        axis.text = element_text(size = 6, face = "bold.italic"),
+        axis.title = element_text(size = 9, face = "bold.italic"),
+        legend.title = element_text(size = 6, face = "bold.italic"),
+        legend.text = element_text(size = 9))
+
+
+png("Inf.res.png", bg = "transparent", width = 8, height = 12, units = "cm", res = 600)
+res.plot
+dev.off()
+
+# Environment #####
 # subset object to avoid running out of memory
 
 env.sel<-readRDS("Environment_sel.rds")
@@ -937,6 +991,33 @@ png("Env_Effects.png", bg = "transparent", width = 17, height = 25, units = "cm"
 multiplot(pred_CNTRY, pred_LNR, pred_NP, pred_MSAC, cols = 2)
 dev.off()
 
+# spatial plots of residuals 
+res.env <- gls.data$Count_WW - predict(env.avg, full = T)
+
+res.env.sp <- data.frame(Residuals = res.env, Longitude = gls.data$y, Latitude = gls.data$x)
+
+
+res.plot <- ggplot(data=res.env.sp, aes(x = Latitude, y = Longitude, height=10000, width=10000))+ 
+  geom_tile(aes(fill = Residuals)) + 
+  scale_fill_gradient2(low = "darkolivegreen", mid = "gold", high = "orangered") +
+  coord_fixed() + scale_x_continuous(labels = function(x){format(x, scientific=F)})+
+  theme_bw() +
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'),
+        axis.text = element_text(size = 6, face = "bold.italic"),
+        axis.title = element_text(size = 9, face = "bold.italic"),
+        legend.title = element_text(size = 6, face = "bold.italic"),
+        legend.text = element_text(size = 9))
+
+
+png("Env_res.png", bg = "transparent", width = 8, height = 12, units = "cm", res = 600)
+res.plot
+dev.off()
+
+
 # Biodiversity #####
 
 #look at distribution of biodiversity records
@@ -1050,3 +1131,30 @@ pred_sp <- ggplot(newdata, aes(x=Species, y=preds_sp$fit)) +
 png("Bio_Effect.png", bg = "transparent", width = 8, height = 10, units = "cm", res = 600)
 pred_sp
 dev.off()
+
+#spatial plot of residuals
+res.bio <- gls.data.bio$Count_WW - predict(bio.gls.exp)
+
+res.bio.sp <- data.frame(Residuals = res.bio, Longitude = gls.data.bio$y, Latitude = gls.data.bio$x)
+
+res.bio.plot <- ggplot(data=res.bio.sp, aes(x = Latitude, y = Longitude, height=10000, width=10000))+ 
+  geom_tile(aes(fill = Residuals)) + 
+  scale_fill_gradient2(low = "darkolivegreen", mid = "gold", high = "orangered") +
+  coord_fixed() + scale_x_continuous(labels = function(x){format(x, scientific=F)})+
+  theme_bw() +
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'),
+        axis.text = element_text(size = 6, face = "bold.italic"),
+        axis.title = element_text(size = 9, face = "bold.italic"),
+        legend.title = element_text(size = 6, face = "bold.italic"),
+        legend.text = element_text(size = 9))
+
+
+png("Bio.res.png", bg = "transparent", width = 8, height = 12, units = "cm", res = 600)
+res.bio.plot
+dev.off()
+
+
