@@ -677,6 +677,7 @@ res.plot
 dev.off()
 
 # Environment #####
+# this was run on on the UoA HPC Maxwell in an interactive session
 # subset object to avoid running out of memory
 
 env.sel<-readRDS("Environment_sel.rds")
@@ -708,106 +709,51 @@ env.sel.sub7 <- subset(env.sel, delta> 4.5 & delta < 5)
 saveRDS(env.sel.sub7, "Environment_sel7.rds")
 rm(env.sel.sub7)
 
-# env.sel.sub8 <- subset(env.sel, delta> 3.5 & delta < 4)
-# saveRDS(env.sel.sub8, "Environment_sel8.rds")
-# rm(env.sel.sub8)
-# 
-# env.sel.sub9 <- subset(env.sel, delta> 4 & delta < 4.5)
-# saveRDS(env.sel.sub9, "Environment_sel9.rds")
-# rm(env.sel.sub9)
-# 
-# env.sel.sub10 <- subset(env.sel, delta> 4.5 & delta < 5)
-# saveRDS(env.sel.sub10, "Environment_sel10.rds")
-# rm(env.sel.sub10)
-# 
-
-# now close R and start new session to free up memory
-# keep starting a new R session after fitting each group of models
-# only way to avoid running out of memory
+# now refit each subset of models with REML
 
 env.sel.sub1 <- readRDS("Environment_sel1.rds")
 str(env.sel.sub1)
 env.sel.REML1<-get.models(env.sel.sub1, subset = TRUE, method = "REML")
 saveRDS(env.sel.REML1,"Environment_Best1.rds")
-# close R and start again
+
 
 env.sel.sub2 <- readRDS("Environment_sel2.rds")
 str(env.sel.sub2)
 env.sel.REML2<-get.models(env.sel.sub2, subset = TRUE, method = "REML")
 saveRDS(env.sel.REML2,"E:\\ChapterIII\\Environment_Best2.rds")
-# close R and start again
+
 
 env.sel.sub3 <- readRDS("Environment_sel3.rds")
 str(env.sel.sub3)
 env.sel.REML3<-get.models(env.sel.sub3, subset = TRUE, method = "REML")
 saveRDS(env.sel.REML3,"E:\\ChapterIII\\Environment_Best3.rds")
-# close R and start again
+
 
 env.sel.sub4 <- readRDS("Environment_sel4.rds")
 str(env.sel.sub4)
 env.sel.REML4<-get.models(env.sel.sub4, subset = TRUE, method = "REML")
-saveRDS(env.sel.REML4,"E:\\ChapterIII\\Environment_Best4.rds")
-# close R and start again
+
 
 
 env.sel.sub5 <- readRDS("Environment_sel5.rds")
 str(env.sel.sub5)
 env.sel.REML5<-get.models(env.sel.sub5, subset = TRUE, method = "REML")
 saveRDS(env.sel.REML5,"E:\\ChapterIII\\Environment_Best5.rds")
-# close R and start again
+
 
 
 env.sel.sub6 <- readRDS("Environment_sel6.rds")
 str(env.sel.sub6)
 env.sel.REML6<-get.models(env.sel.sub6, subset = TRUE, method = "REML")
 saveRDS(env.sel.REML6,"E:\\ChapterIII\\Environment_Best6.rds")
-# close R and start again
+
 
 env.sel.sub7 <- readRDS("Environment_sel7.rds")
 str(env.sel.sub7)
 env.sel.REML7<-get.models(env.sel.sub7, subset = TRUE, method = "REML")
 saveRDS(env.sel.REML7,"E:\\ChapterIII\\Environment_Best7.rds")
-# close R and start again
 
-# env.sel.sub8 <- readRDS("Environment_sel8.rds")
-# env.sel.REML8<-get.models(env.sel.sub8, subset = TRUE, method = "REML")
-# saveRDS(env.sel.REML8,"Environment_Best8.rds")
-# rm(env.sel.sub8, env.sel.REML8)
-# gc()
-# 
-# env.sel.sub9 <- readRDS("Environment_sel9.rds")
-# env.sel.REML9<-get.models(env.sel.sub9, subset = TRUE, method = "REML")
-# saveRDS(env.sel.REML9,"Environment_Best9.rds")
-# rm(env.sel.sub9, env.sel.REML9)
-# gc()
-# 
-# env.sel.sub10 <- readRDS("Environment_sel10.rds")
-# env.sel.REML10<-get.models(env.sel.sub10, subset = TRUE, method = "REML")
-# saveRDS(env.sel.REML10,"Environment_Best10.rds")
-# rm(env.sel.sub10, env.sel.REML10)
-# gc()
 
-# #refit subset of models with REML
-# # Calculate the number of cores
-# cores <- detectCores()
-# 
-# # Set up a cluster with number of cores specified as result of detectCores() 
-# #   and call it "clust" 
-# clust <- makeCluster(cores)
-# 
-# 
-# # Load required packages onto worker nodes
-# #   (in this example, load packages {MASS} and {MuMIn} to be used by pdredg)
-# clusterEvalQ(clust,library(nlme))
-# clusterEvalQ(clust,library(MuMIn))
-# clusterExport(clust,"gls.data")  #export the dataframe to the cluster
-# clusterExport(clust,"env.sel.sub")  #export the model selection object to the cluster
-# 
-# env.sel.REML<-get.models(env.sel.sub, subset = TRUE, method = "REML")
-# 
-# saveRDS(env.sel.REML,"Environment_Best.rds")
-# 
-# stopCluster(clust)
 
 env.sel.REML1<-readRDS("Environment_Best1.rds")
 
