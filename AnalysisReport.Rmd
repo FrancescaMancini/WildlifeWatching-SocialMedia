@@ -32,7 +32,7 @@ preds.agg<-data_sub[,c("Area_PA","Mean_Nat","Count_Inf")]
 #then calculate variance inflation factor
 
 #calculate VIF
-source("Collinearity")
+source("Collinearity.R")
 VIF<-corvif(preds.agg)
 
 ```
@@ -408,6 +408,7 @@ stopCluster(clust)
 ```
 
 ```{r readModSel, include=FALSE}
+library(MuMIn)
 inf.sel<-readRDS("Infrastructure_sel.rds")
 ```
 
@@ -586,8 +587,9 @@ data_sub$logrec<-log(data_sub$Records+1)
 data.pos<-data_sub[data_sub$logrec>0,]
 
 #now select only records belonging to group 2
+names(classes)<-"clas"
 data.gr2<-cbind(data.pos,classes)
-data.gr2<-data.gr2[data.gr2$x==2,]
+data.gr2<-data.gr2[data.gr2$clas==2,]
 #str(data.gr2)
 ```
 
