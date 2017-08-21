@@ -1,0 +1,23 @@
+#!/bin/bash
+#$ -V -cwd
+#$ -j y
+#$ -N ModSel
+#$ -M r03fm14@abdn.ac.uk
+#$ -m eas
+#$ -l h_rt=500:00:00
+#$ -l h_vmem=10G
+#$ -pe mpislots-verbose 64
+#$ -R y
+
+module load mpi
+module load apps/R/3.2.3/gcc-4.4.6+lapack-3.4.1+blas-1
+eval "export `mpirun env | grep OMPI_MCA_orte_precondition_transports`"
+
+R CMD INSTALL /users/r03fm14/software/pkg/RLibs/3.3.2i/Rmpi_0.6-6.tar.gz \
+    --configure-vars="CPPFLAGS=-I$/opt/gridware/pkg/mpi/openmpi/1.6.3/gcc-4.4.6/include LDFLAGS='-L$/opt/gridware/pkg/mpi/openmpi/1.6.3/gcc-4.4.6/lib'" \
+    --configure-args="--with-Rmpi-include=/opt/gridware/pkg/mpi/openmpi/1.6.3/gcc-4.4.6/include \
+                      --with-Rmpi-libpath=/opt/gridware/pkg/mpi/openmpi/1.6.3/gcc-4.4.6/lib \
+                      --with-Rmpi-type=OPENMPI" 
+
+#Rscript R ModSel.R
+mpirun -np 1 Rscript ModSel.R
