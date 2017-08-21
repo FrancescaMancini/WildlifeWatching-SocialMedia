@@ -473,7 +473,7 @@ inf.confint<-confint(inf.avg)
 
 ##### Environmental model
 
-The following code was used to set up a cluster and run the model selection on the environmental variables on the UoA HPC Maxwell.
+The following code was used to set up a cluster and run the model selection on the environmental variables on the UoA HPC Maxwell. For bash script see Env_ModSel_bash.txt in this repository.
 
 ```{r pdredgeEnv, eval = FALSE}
 library(nlme)
@@ -505,6 +505,8 @@ saveRDS(env.sel,"Environment_sel.rds")
 
 stopCluster(clust)
 ```
+
+The same procedure used for the infrastructure model was followed to perform model averaging for the environmental model. For R code see script Analysis.R.
 
 ### Biodiversity 
 
@@ -592,55 +594,46 @@ data.gr2<-data.gr2[data.gr2$x==2,]
 #### Effect of biodiversity
 
 Now we can model the effect of biodiversity. First we try a simple linear model with both variables logtransformed.
-We exclude the offset for population size because the exclusion of low records cells should already take care of that.
 
-```{r BioLm}
-bio.1<-lm(log10(Count_WW+1)~log10(Species),data=data.gr2)
-summary(bio.1)
+```{r BioGls}
+gls.data.bio<-data.frame(Count_WW=log10(data.gr2$Count_WW+1), Dist_MSAC=scale(data.gr2$Dist_MSAC,scale=T),
+                     Area_LNR=scale(data.gr2$Area_LNR,scale=T), Area_CNTRY=scale(data.gr2$Area_CNTRY,scale=T), 
+                     Area_NP=scale(data.gr2$Area_NP,scale=T), Mean_Nat=scale(data.gr2$Mean_Nat,scale=T),
+                     Species=log10(data.gr2$Species), x=data.gr2$x,y=data.gr2$y)
+
+bio.gls.exp<-gls(Count_WW ~ Dist_MSAC + Area_LNR + Area_CNTRY + Area_NP + Mean_Nat + Species,
+                 data = gls.data.bio, correlation = corExp(form = ~ x+y,nugget = T))
+
+bio.gls.lin<-gls(Count_WW ~ Dist_MSAC + Area_LNR + Area_CNTRY + Area_NP + Mean_Nat + Species,
+                 data = gls.data.bio, correlation = corLin(form = ~ x+y,nugget = T))
+
+bio.gls.ratio<-gls(Count_WW ~ Dist_MSAC + Area_LNR + Area_CNTRY + Area_NP + Mean_Nat + Species,
+                   data = gls.data.bio, correlation = corRatio(form = ~ x+y,nugget = T))
+
+bio.gls.gaus<-gls(Count_WW ~ Dist_MSAC + Area_LNR + Area_CNTRY + Area_NP + Mean_Nat + Species,
+                  data = gls.data.bio, correlation = corGaus(form = ~ x+y,nugget = T))
+
+bio.gls.sph<-gls(Count_WW ~ Dist_MSAC + Area_LNR + Area_CNTRY + Area_NP + Mean_Nat + Species,
+                 data = gls.data.bio, correlation = corSpher(form = ~ x+y,nugget = T))
+
 ```
+
+Now we use AIC to determine the best autocorrelation structure.
+
+```{r BioModSel}
+AIC(bio.gls.exp, bio.gls.lin, bio.gls.ratio, bio.gls.gaus, bio.gls.sph)
+```
+
+The best model includes the exponantial correlation structure.
+
+```{r BioBest}
+summary(bio.gls.exp)
+```
+
 
 Check model assumptions.
 
 ```{r BioLmCheck}
-par(mfrow=c(2,2))
-plot(bio.1)
-```
-
-Check for spatial autocorrelation by extracting the standardised residuals ad plotting a variogram.
-
-
-```{r BioLmSpatialCheck}
-S.res.bio.1<-rstandard(bio.1)
-#create a spatial dataframe
-mydata_sp<-data.gr2
-coordinates(mydata_sp)<-c("Longitude", "Latitude")
-
-#calculate and plot variograms
-Vario<-variogram(S.res.bio.1~1,data=mydata_sp)
-Variodir<-variogram(S.res.bio.1~1,data=mydata_sp,alpha=c(0,45,90,135))
-
-plot(Vario)
-plot(Variodir)
-```
-
-The residuals are spatially correlated.
-
-Use gls to include a crrelation structure. Since we are working on the same data we can use the same correlation structure that we used in the previous models.
-We prepare the dataset and fit the model with both response and explanatory variables logtransformed.
-
-```{r BioGlsData}
-data.bio.gls<-data.frame(Count_WW=log10(data.gr2$Count_WW+1),Species=log10(data.gr2$Species),
-                         x=data.gr2$Longitude,y=data.gr2$Latitude)
-```
-
-```{r BioGls, cache=TRUE}
-bio.gls.exp<-gls(Count_WW~ Species,data=data.bio.gls, correlation=corExp(form=~x+y,nugget=T))
-summary(bio.gls.exp)
-```
-
-We check for violations of model assumptions
-
-```{r BioGlsCheck}
 res.bio.gls<-residuals(bio.gls.exp, type="normalized")
 
 fit.bio.gls<-fitted(bio.gls.exp)
@@ -651,68 +644,18 @@ plot(res.bio.gls ~ fit.bio.gls)
 qqnorm(res.bio.gls)
 
 qqline(res.bio.gls)
+
 ```
 
+Check for spatial autocorrelation by plotting a variogram.
 
-Check if autocorrelation was fixed.
 
-```{r BioGlsSpatialCheck}
+```{r BioLmSpatialCheck}
+mydata_sp<-gls.data.bio
+coordinates(mydata_sp)<-c("x", "y")
+
 Vario<-variogram(res.bio.gls~1,data=mydata_sp)
 
 plot(Vario)
 ```
-
-No more autocorrelation.
-We can check the fit by plotting predictions on top of the data.
-
-```{r BioGlsPred, cache=TRUE}
-# pred_data<-data.frame(Species=seq(from=min(data.bio.gls$Species), 
-#                                   to=max(data.bio.gls$Species),by=0.001))
-# 
-# preds<-predict(bio.gls.exp,pred_data,type="link")
-# preds<-as.data.frame(preds)
-# 
-# plot(Count_WW~Species,data=data.bio.gls)
-# lines(preds$preds~pred_data$Species)
-```
-
-Not a good fit. The relationship does not look linear, therefore we can try fitting a gam to the logtransformed response with a spline for the number of species.
-
-```{r BioGam}
-library(mgcv)
-
-bio.gam<-gam(log10( Count_WW +1 )~s(Species),data=data.gr2)
-summary(bio.gam)
-```
-
-Diagnostic plots
-
-```{r BioGamCheck}
-gam.check(bio.gam)
-```
-
-Could be better.
-
-Look at the fit.
-
-```{r BioGamPred}
-pred_data<-data.frame(Species=seq(from=min(data.gr2$Species), 
-                                  to=max(data.gr2$Species),by=0.001))
-
-preds<-predict(bio.gam,pred_data,type="response",se=T)
-preds<-as.data.frame(preds)
-CIup<-preds$fit + 1.96 *preds$se.fit
-CIlow<-preds$fit - 1.96 *preds$se.fit
-
-
-library(scales)
-
-plot(log10(Count_WW +1)~Species,data=data.gr2, pch=20,col=alpha("cadetblue",0.5),xlab="Number of species",ylab="Number of Flickr users")
-lines(preds$fit~pred_data$Species, lwd=3, col="cadetblue")
-lines(CIup~pred_data$Species,lty=2,lwd=2,col="cadetblue")
-lines(CIlow~pred_data$Species,lty=2,lwd=2,col="cadetblue")
-```
-
-Better fit.
-
 
