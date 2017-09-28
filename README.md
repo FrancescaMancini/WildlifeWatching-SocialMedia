@@ -1,11 +1,3 @@
----
-title: ""
-output: html_document
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
 
 This repository contains all the data and scripts necessary to replicate the statistical analysis in in **"Big Data" for quantifying recreational ecosystem services and characterising people’s connection to nature**.
 For a description of the data and the methods see the manuscript (pre-print coming soon).
