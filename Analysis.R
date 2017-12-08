@@ -136,7 +136,8 @@ gls.data<-data.frame(Count_WW=log10(data_sub$Count_WW + 1), Area_WHS=scale(data_
                      Area_CNTRY=scale(data_sub$Area_CNTRY, scale=T), Area_BIOSP=scale(data_sub$Area_BIOSP, scale=T), 
                      Area_BIOGE=scale(data_sub$Area_BIOGE, scale=T), Area_NP=scale(data_sub$Area_NP, scale=T), 
                      Dist_Air=scale(data_sub$Dist_Air, scale=T), Count_Bus=scale(data_sub$Count_Bus, scale=T),
-                     Count_Hotel=log10(data_sub$Count_Hotel + 1), Dist_CarPark=scale(data_sub$Dist_CarPark, scale=T), 
+                     Count_Hotel=scale(log10(data_sub$Count_Hotel + 1), scale = T), 
+                     Dist_CarPark=scale(data_sub$Dist_CarPark, scale=T), 
                      Dist_TourOp=scale(data_sub$Dist_TourOp, scale=T), Dist_Train=scale(data_sub$Dist_Train, scale=T), 
                      Dist_road=scale(data_sub$Dist_road, scale=T), Mean_Nat=scale(data_sub$Mean_Nat, scale=T),
                      Area_PA=scale(data_sub$Area_PA, scale = T), Count_Inf=scale(data_sub$Count_Inf, scale = T),
@@ -201,8 +202,8 @@ preds_PA <- predict(agg.gls.exp, se.fit=TRUE, newdata)
 pred_PA <- ggplot(newdata, aes(x = Area_PA, y = preds_PA$fit)) +
             geom_ribbon(aes(ymin = preds_PA$fit - 1.96 * preds_PA$se.fit, 
                             ymax = preds_PA$fit + 1.96 * preds_PA$se.fit), 
-                        alpha = 0.4, fill = "#E2E888") +
-            geom_line(size = 2, col = "#E2E888") +
+                        alpha = 0.4, fill = "#afcbff") +
+            geom_line(size = 2, col = "#afcbff") +
             geom_rug(aes(x = Area_PA_org, y = Count_WW), alpha = 1/2, position = "jitter", size = 0.2)+
             labs(x = "Protected Areas", y = "Wildlife pictures (log10)") +
             theme_bw() +
@@ -228,8 +229,8 @@ preds_nat <- predict(agg.gls.exp, se.fit=TRUE, full=T, newdata)
 pred_nat <- ggplot(newdata, aes(x = Mean_Nat, y = preds_nat$fit)) +
              geom_ribbon(aes(ymin = preds_nat$fit - 1.96 * preds_nat$se.fit, 
                              ymax =  preds_nat$fit + 1.96 * preds_nat$se.fit), 
-                         alpha = .4, fill = "#E2E888") +
-             geom_line(size = 2, col = "#E2E888") +
+                         alpha = .4, fill = "#afcbff") +
+             geom_line(size = 2, col = "#afcbff") +
              geom_rug(aes(x = Mean_Nat_org, y = Count_WW), alpha = 1/2, position = "jitter", size = 0.2)+
              labs(x = "Naturalness", y = "")+
              theme_bw() +
@@ -255,8 +256,8 @@ preds_inf <- predict(agg.gls.exp, se.fit=TRUE, full=T, newdata)
 pred_inf <- ggplot(newdata, aes(x = Count_Inf, y = preds_inf$fit)) +
              geom_ribbon(aes(ymin = preds_inf$fit - 1.96 * preds_inf$se.fit, 
                              ymax =  preds_inf$fit + 1.96 * preds_inf$se.fit), 
-                         alpha = .4, fill = "#E2E888") +
-             geom_line(size = 2, col = "#E2E888") +
+                         alpha = .4, fill = "#afcbff") +
+             geom_line(size = 2, col = "#afcbff") +
              geom_rug(aes(x=Count_Inf_org, y=Count_WW), alpha = 1/2, position = "jitter", size = 0.2)+
              labs(x = "Infrastructures", y = "") +
              theme_bw() +
@@ -463,14 +464,14 @@ stopCluster(clust)
 
 # Infrastructures
 
-inf.sel <- readRDS("Infrastructure_sel.rds")
+#inf.sel <- readRDS("Infrastructure_sel.rds")
 
 # refit subset of models with REML
 inf.sel.REML <- get.models(inf.sel, subset=delta < 5)
 
-saveRDS(inf.sel.REML, "Infrastructure_Best.rds")
+#saveRDS(inf.sel.REML, "Infrastructure_Best.rds")
 
-inf.sel.REML <- readRDS("Infrastructure_Best.rds")
+#inf.sel.REML <- readRDS("Infrastructure_Best.rds")
 
 # calculate variable importance 
 inf.var.imp <- importance(inf.sel.REML)
@@ -492,9 +493,9 @@ InfVarImpVis <- ggplot (inf.var.imp, aes(Var, Importance, fill = Importance)) +
                  theme(axis.title = element_blank(),
                        panel.border = element_blank(),
                        axis.ticks = element_blank(),
-                       axis.text.y = element_blank(),
+                       #axis.text.y = element_blank(),
                        panel.grid = element_blank(),
-                       axis.text.x = element_blank(),
+                       #axis.text.x = element_blank(),
                        legend.title = element_text(size = 15),
                        legend.text = element_text(size = 12))
 
