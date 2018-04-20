@@ -2,7 +2,7 @@
 # "“Big Data” for quantifying recreational ecosystem services 
 # and characterising people’s connection to nature"
 # created by Francesca Mancini
-# last modified 28/09/2017
+# last modified 20/04/2018
 
 # Packages ######
 
@@ -1030,4 +1030,53 @@ png("Bio.res.png", bg = "transparent", width = 8, height = 12, units = "cm", res
 res.bio.plot
 dev.off()
 
+# reviewer's request
+# Put best variables together 
+# Mixed variables #######
+preds.mixed<-gls.data[,c("Dist_MSAC", "Area_NP", "Area_LNR", "Area_CNTRY", "Mean_Nat",
+                         "Count_Hotel", "Count_Bus", "Dist_Air")]
 
+# calculate VIF
+VIF<-corvif(preds.mixed)
+
+mixed.gls.ratio <- gls(Count_WW ~ Area_LNR + Area_NP + Dist_MSAC + Area_CNTRY +
+                         Mean_Nat + Count_Hotel + Count_Bus + Dist_Air, data=gls.data,
+                       correlation=corRatio(form=~x+y, nugget=T))
+
+mixed.gls.sph <- gls(Count_WW ~ Area_LNR + Area_NP + Dist_MSAC + Area_CNTRY +
+                       Mean_Nat + Count_Hotel + Count_Bus + Dist_Air, data=gls.data,
+                     correlation=corSpher(form=~x+y, nugget=T))
+
+mixed.gls.Lin <- gls(Count_WW ~ Area_LNR + Area_NP + Dist_MSAC + Area_CNTRY +
+                       Mean_Nat + Count_Hotel + Count_Bus + Dist_Air, data=gls.data,
+                     correlation=corLin(form=~x+y, nugget=T))
+
+mixed.gls.Gaus <- gls(Count_WW ~ Area_PA + Mean_Nat + Count_Inf, data=gls.data,
+                      correlation=corGaus(form=~x+y, nugget=T))
+
+mixed.gls.exp <- gls(Count_WW ~ Area_LNR + Area_NP + Dist_MSAC + Area_CNTRY +
+                       Mean_Nat + Count_Hotel + Count_Bus + Dist_Air, data=gls.data,
+                     correlation=corExp(form=~x+y, nugget=T))
+
+
+AIC(mixed.gls.ratio, mixed.gls.sph, mixed.gls.Lin, mixed.gls.Gaus, mixed.gls.exp)
+
+# Exponential autocrrelation structure is the best one
+
+summary(mixed.gls.exp)
+
+
+# check for patterns in the residuals
+
+res.mixed.gls <- residuals(mixed.gls.exp, type="normalized")
+fit.mixed.gls <- fitted(mixed.gls.exp)
+
+plot(res.mixed.gls ~ fit.mixed.gls)
+
+qqnorm(res.mixed.gls)
+qqline(res.mixed.gls)
+
+# check that autocorrelation is not an issue anymore
+Vario.mixed.gls <- Variogram(mixed.gls.exp, form= ~x+y, robust=T, resType="normalized")
+
+plot(Vario.mixed.gls, smooth=F)
